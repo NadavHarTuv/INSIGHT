@@ -688,7 +688,6 @@ def exploratory_computation(contingency_table, upper_polarity_idx=None, satisfac
         
         # Store the original table before any modifications
         working_table = original_contingency_table.copy()
-        
         # Define the constrained satisfaction level index
         constraint_index = None
         satisfaction_level_removed = False
@@ -749,7 +748,7 @@ def exploratory_computation(contingency_table, upper_polarity_idx=None, satisfac
         predefined_dist_threshold = [2.71, 4.60 ,6.25 ,7.78 ,9.24,
                                      10.64, 12.02 ,13.36 ,14.68, 15.99, 17.27 ,18.55, 19.81, 21.06 ,22.31,
                                      23.54, 24.77, 25.99, 27.20, 28.41, 29.61]
-        dist_threshold = predefined_dist_threshold[num_level - 1]
+        dist_threshold = predefined_dist_threshold[num_level-2]
         brand_dist = np.zeros((num_brand, num_brand))
 
         for j in range(num_brand-1):
@@ -758,7 +757,6 @@ def exploratory_computation(contingency_table, upper_polarity_idx=None, satisfac
                 brand_dist[j, i] = brand_dist[i, j]
         
         np.fill_diagonal(brand_dist, dist_threshold + 1)
-        
         # Iteratively cluster the brands
         cluster_label = np.arange(1, num_brand+1)
         for _ in range(num_brand):
@@ -1699,6 +1697,7 @@ def confirmatory_report(result):
             else:
                 report_items.append(f"Note: The last satisfaction level (Level {constraint_index+1}) was omitted during the analysis.")
         
+     
         # Return the report items
         return report_items
         
@@ -2013,6 +2012,7 @@ def plot_exploratory_brand_clusters(result):
     plt.tight_layout()
     return fig
 
+
 def exploratory_report(result):
     """
     Generate a report for the exploratory analysis.
@@ -2046,19 +2046,19 @@ def exploratory_report(result):
         report_items.append(observed_df)
         
         # 2. ANOAS Statistics (instead of model statistics)
-        report_items.append("### ANOAS Statistics")
-        stats_text = f"Full L-Squared = {result.get('full_l_sq_stat', 'N/A'):.2f}\n"
-        stats_text += f"Full D.O.F. = {result.get('full_d_o_f', 'N/A')}\n"
-        stats_text += f"Full p-value = {result.get('full_p_value', 'N/A'):.4f}\n"
-        stats_text += f"Change in L-Squared = {result.get('change_in_l_sq', 'N/A'):.2f}\n"
-        stats_text += f"Change in D.O.F. = {result.get('change_in_d_o_f', 'N/A')}\n"
-        stats_text += f"Information p-value = {result.get('information_p_value', 'N/A'):.4f}\n"
-        stats_text += f"Information is lost = {result.get('information_is_lost', 'N/A')}"
+        # stats_text = f"Full L-Squared = {result.get('full_l_sq_stat', 'N/A'):.2f}\n"
+        # stats_text += f"Full D.O.F. = {result.get('full_d_o_f', 'N/A')}\n"
+        # stats_text += f"Full p-value = {result.get('full_p_value', 'N/A'):.4f}\n"
+        # stats_text += f"Change in L-Squared = {result.get('change_in_l_sq', 'N/A'):.2f}\n"
+        # stats_text += f"Change in D.O.F. = {result.get('change_in_d_o_f', 'N/A')}\n"
+        # stats_text += f"Information p-value = {result.get('information_p_value', 'N/A'):.4f}\n"
+        # stats_text += f"Information is lost = {result.get('information_is_lost', 'N/A')}"
+        report_items.append("### Model Statistics")
+        stats_text = f"L-square = {result.get('full_l_sq_stat', 'N/A'):.2f}, D.O.F. = {result.get('full_d_o_f', 'N/A')}, p-value = {utils.signif(result.get('full_p_value', 'N/A'), 4)}"
         report_items.append(stats_text)
         
         # 3. Brand Clustering Information
-        report_items.append("### Brand Clustering")
-        report_items.append(f"Distance threshold used: {result.get('critical_value', 'N/A'):.4f}")
+        # report_items.append("### Brand Clustering")
         
         # Group brands by cluster
         brand_clusters = {}
@@ -2067,25 +2067,26 @@ def exploratory_report(result):
                 brand_clusters[cluster_id] = []
             brand_clusters[cluster_id].append(i + 1)  # Convert to 1-based indexing
         
-        # Create a table of brand clusters
-        cluster_data = {"Cluster": [], "Brands": []}
-        for cluster_id in sorted(brand_clusters.keys()):
-            brands = brand_clusters[cluster_id]
-            cluster_data["Cluster"].append(f"Cluster {cluster_id}")
+        # # Create a table of brand clusters
+        # cluster_data = {"Cluster": [], "Brands": []}
+        # for cluster_id in sorted(brand_clusters.keys()):
+        #     brands = brand_clusters[cluster_id]
+        #     cluster_data["Cluster"].append(f"Cluster {cluster_id}")
             
-            if len(brands) == 1:
-                brand_str = f"Brand {brands[0]}"
-            else:
-                brand_str = f"Brands {', '.join(map(str, brands))}"
+        #     if len(brands) == 1:
+        #         brand_str = f"Brand {brands[0]}"
+        #     else:
+        #         brand_str = f"Brands {', '.join(map(str, brands))}"
             
-            cluster_data["Brands"].append(brand_str)
+        #     cluster_data["Brands"].append(brand_str)
         
-        cluster_df = pd.DataFrame(cluster_data)
-        report_items.append(cluster_df)
+        # cluster_df = pd.DataFrame(cluster_data)
+        # report_items.append(cluster_df)
         
         # 4. Final Ranking with Stochastic Ordering
         report_items.append("### Final Ranking with Stochastic Ordering")
-        
+        report_items.append(f"Distance threshold used: {result.get('critical_value', 'N/A'):.4f}")
+
         # Add note about polarity index calculation if an upper tail was specified
         if 'upper_polarity_idx' in result and result['upper_polarity_idx'] is not None:
             if isinstance(result['upper_polarity_idx'], list) and len(result['upper_polarity_idx']) > 0:
@@ -2271,6 +2272,9 @@ def exploratory_report(result):
             else:
                 report_items.append(f"Note: The last satisfaction level (Level {constraint_index+1}) was omitted during the analysis.")
         
+        z_matrix = result['z_matrix']
+        report_items.append("### Z-Matrix")
+        report_items.append(z_matrix)
         # Return the report items
         return report_items
         
@@ -2278,4 +2282,3 @@ def exploratory_report(result):
         import traceback
         traceback.print_exc()
         return [f"Error generating report: {str(e)}"]
-
