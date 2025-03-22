@@ -688,6 +688,7 @@ def exploratory_computation(contingency_table, upper_polarity_idx=None, satisfac
         
         # Store the original table before any modifications
         working_table = original_contingency_table.copy()
+        
         # Define the constrained satisfaction level index
         constraint_index = None
         satisfaction_level_removed = False
@@ -857,54 +858,26 @@ def exploratory_computation(contingency_table, upper_polarity_idx=None, satisfac
                 indices = np.where(cluster_label == i)[0]
                 omitted_column_collapsed[i-1] = np.sum(omitted_column[indices])
             
+            # Create matrix m for collapsed table without omitted category
+            m = np.zeros((num_cluster, num_collapsed_level))
+            for i in range(num_collapsed_level):
+                mask = best_partition == i + 1
+                m[:, i] = np.sum(collapsed_contingency_table_rows[:, mask], axis=1)
+            
             # Create contingency table with the omitted column reintegrated
             if constraint_index == 0:  # First column
                 # Add as first column
-                omitted_table_collapsed_with_constraint = np.column_stack((
-                    omitted_column_collapsed, collapsed_level_table
+                m_with_constraint = np.column_stack((
+                    omitted_column_collapsed, m
                 ))
             else:  # Last column or other
                 # Add as last column
-                omitted_table_collapsed_with_constraint = np.column_stack((
-                    collapsed_level_table, omitted_column_collapsed
+                m_with_constraint = np.column_stack((
+                    m, omitted_column_collapsed
                 ))
             
             # Calculate PMF with the constraint included
-            pmf_with_constraint = omitted_table_collapsed_with_constraint / np.sum(omitted_table_collapsed_with_constraint, axis=1, keepdims=True)
-        
-        # Create the results dictionary
-        results = {
-            'observed': anoas_result['full_result']['observed'],  # Placeholder for anoas result structure
-            'collapsed_contingency_table_rows': collapsed_contingency_table_rows,
-            'full_l_sq_stat': anoas_result['full_result']['l_sq_stat'],  # Placeholder
-            'full_d_o_f': anoas_result['full_result']['d_of'],  # Placeholder
-            'full_p_value': anoas_result['full_result']['p_value'],  # Placeholder
-            'critical_value': dist_threshold,
-            'brand_cluster': cluster_label,
-            'satisfaction_partition': best_partition,
-            'collapsed_pmf': collapsed_level_table,
-            'stochastic_ordering': stochastic_ordering_result,
-            'polarity_index': polarity_index,
-            'upper_polarity_idx': upper_polarity_idx,  # Add the upper polarity index to the results
-            'satisfaction_constraint': constraint_index,  # Add the satisfaction constraint to the results
-            'change_in_l_sq': anoas_result['change_in_l_sq'],  # Placeholder
-            'change_in_d_o_f': anoas_result['change_in_d_of'],  # Placeholder
-            'information_p_value': anoas_result['information_p_value'],  # Placeholder
-            'information_is_lost': anoas_result['information_is_lost'],  # Placeholder
-            'avg_satisfaction': avg_satisfaction,
-            'rank_by_avg': rank_by_avg,
-            'rank_by_best': rank_by_best,
-            'rank_by_best_two': rank_by_best_two,
-            'rank_by_worst': rank_by_worst,
-            'rank_by_worst_two': rank_by_worst_two
-        }
-        
-        # Add reintegrated satisfaction constraint information if applicable
-        if satisfaction_level_removed:
-            results['original_contingency_table'] = original_contingency_table
-            results['omitted_column'] = omitted_column
-            results['omitted_column_collapsed'] = omitted_column_collapsed
-            results['pmf_with_constraint'] = pmf_with_constraint
+            pmf_with_constraint = m_with_constraint / np.sum(m_with_constraint, axis=1, keepdims=True)
         
         # Calculate Z-matrix for stochastic ordering
         # Get dimensions and data
@@ -936,11 +909,43 @@ def exploratory_computation(contingency_table, upper_polarity_idx=None, satisfac
                 z_ij = (np.log(top_i/bottom_i) - np.log(top_j/bottom_j)) / np.sqrt(1/top_i + 1/bottom_i + 1/top_j + 1/bottom_j)
                 z_matrix[i, j] = z_ij
         
-        # Add z_matrix to results
-        results['z_matrix'] = z_matrix
-        results['bottom_half'] = bottom_half
-        results['top_half'] = top_half
-        results['mid_category_partition'] = mid_category_partition
+        # Create the results dictionary
+        results = {
+            'observed': anoas_result['full_result']['observed'],  # Placeholder for anoas result structure
+            'collapsed_contingency_table_rows': collapsed_contingency_table_rows,
+            'full_l_sq_stat': anoas_result['full_result']['l_sq_stat'],  # Placeholder
+            'full_d_o_f': anoas_result['full_result']['d_of'],  # Placeholder
+            'full_p_value': anoas_result['full_result']['p_value'],  # Placeholder
+            'critical_value': dist_threshold,
+            'brand_cluster': cluster_label,
+            'satisfaction_partition': best_partition,
+            'collapsed_pmf': collapsed_level_table,
+            'stochastic_ordering': stochastic_ordering_result,
+            'polarity_index': polarity_index,
+            'upper_polarity_idx': upper_polarity_idx,  # Add the upper polarity index to the results
+            'satisfaction_constraint': constraint_index,  # Add the satisfaction constraint to the results
+            'change_in_l_sq': anoas_result['change_in_l_sq'],  # Placeholder
+            'change_in_d_o_f': anoas_result['change_in_d_of'],  # Placeholder
+            'information_p_value': anoas_result['information_p_value'],  # Placeholder
+            'information_is_lost': anoas_result['information_is_lost'],  # Placeholder
+            'avg_satisfaction': avg_satisfaction,
+            'rank_by_avg': rank_by_avg,
+            'rank_by_best': rank_by_best,
+            'rank_by_best_two': rank_by_best_two,
+            'rank_by_worst': rank_by_worst,
+            'rank_by_worst_two': rank_by_worst_two,
+            'z_matrix': z_matrix,
+            'bottom_half': bottom_half,
+            'top_half': top_half,
+            'mid_category_partition': mid_category_partition
+        }
+        
+        # Add satisfaction constraint information if applicable
+        if satisfaction_level_removed:
+            results['original_contingency_table'] = original_contingency_table
+            results['omitted_column'] = omitted_column
+            results['omitted_column_collapsed'] = omitted_column_collapsed
+            results['pmf_with_constraint'] = pmf_with_constraint
         
         return results
         
@@ -2355,9 +2360,15 @@ def exploratory_report(result):
                     # Get brand index based on stochastic ordering if available
                     brand_idx = result['stochastic_ordering'][i] if result.get('stochastic_ordering') is not None else i
                     
-                    # Add the PMF value
-                    pmf_value = result['pmf_with_constraint'][brand_idx, j]
-                    pmf_dict[level_key].append(round(pmf_value, 2))
+                    # Get cluster ID from the sorted list of cluster IDs
+                    cluster_ids = sorted(brand_clusters.keys())
+                    if brand_idx < len(cluster_ids):
+                        cluster_id = cluster_ids[brand_idx]
+                        # Add the PMF value using the correct brand index
+                        pmf_value = result['pmf_with_constraint'][brand_idx, j]
+                        pmf_dict[level_key].append(round(pmf_value, 2))
+                    else:
+                        pmf_dict[level_key].append("N/A")
                 
             # Create DataFrame for display
             pmf_df = pd.DataFrame(pmf_dict)
