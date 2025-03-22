@@ -953,13 +953,7 @@ elif selected_method == 'Ranking' and st.session_state.get('transformed_data') i
                                 # Second tab: Average satisfaction plot
                                 with sub_tabs[1]:
                                     try:
-                                        if comp_data['analysis_type'] == 'confirmatory':
-                                            fig = ranking.plot_confirmatory_brand_clusters(comp_data['results'])
-                                        elif comp_data['analysis_type'] == 'exploratory':
-                                            fig = ranking.plot_exploratory_brand_distribution(comp_data['results'], comp_data['contingency_table'])
-                                        else:
-                                            st.warning("Plot not available for this analysis type.")
-                                            continue
+                                        fig = ranking.plot_confirmatory_brand_clusters(comp_data['results'])
                                         st.pyplot(fig)
                                     except Exception as e:
                                         st.error(f"Error generating brand clusters plot: {str(e)}")
@@ -967,13 +961,7 @@ elif selected_method == 'Ranking' and st.session_state.get('transformed_data') i
                                 # Third tab: Distribution plot
                                 with sub_tabs[2]:
                                     try:
-                                        if comp_data['analysis_type'] == 'confirmatory':
-                                            fig = ranking.plot_confirmatory_brand_distribution(comp_data['results'])
-                                        elif comp_data['analysis_type'] == 'exploratory':
-                                            fig = ranking.plot_exploratory_brand_clusters(comp_data['results'])
-                                        else:
-                                            st.warning("Plot not available for this analysis type.")
-                                            continue
+                                        fig = ranking.plot_confirmatory_brand_distribution(comp_data['results'])
                                         st.pyplot(fig)
                                     except Exception as e:
                                         st.error(f"Error generating distribution plot: {str(e)}")

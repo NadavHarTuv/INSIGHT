@@ -906,6 +906,42 @@ def exploratory_computation(contingency_table, upper_polarity_idx=None, satisfac
             results['omitted_column_collapsed'] = omitted_column_collapsed
             results['pmf_with_constraint'] = pmf_with_constraint
         
+        # Calculate Z-matrix for stochastic ordering
+        # Get dimensions and data
+        mid_category = np.ceil(contingency_table.shape[1] / 2).astype(int)
+        mid_category_partition = best_partition[mid_category - 1]  # -1 for 0-based indexing
+        
+        # Calculate bottom and top halves
+        bottom_mask = np.array([p <= mid_category_partition for p in best_partition])
+        top_mask = np.array([p > mid_category_partition for p in best_partition])
+        
+        # Handle both matrix and vector cases
+        if len(collapsed_contingency_table_rows.shape) > 1:
+            bottom_half = np.sum(collapsed_contingency_table_rows[:, bottom_mask], axis=1)
+            top_half = np.sum(collapsed_contingency_table_rows[:, top_mask], axis=1)
+        else:
+            bottom_half = collapsed_contingency_table_rows[bottom_mask]
+            top_half = collapsed_contingency_table_rows[top_mask]
+        
+        # Calculate Z-statistics
+        z_matrix = np.zeros((num_cluster, num_cluster))
+        for i in range(num_cluster):
+            for j in range(i + 1, num_cluster):
+                bottom_i = bottom_half[i]
+                top_i = top_half[i]
+                bottom_j = bottom_half[j]
+                top_j = top_half[j]
+                
+                # Calculate z-statistic
+                z_ij = (np.log(top_i/bottom_i) - np.log(top_j/bottom_j)) / np.sqrt(1/top_i + 1/bottom_i + 1/top_j + 1/bottom_j)
+                z_matrix[i, j] = z_ij
+        
+        # Add z_matrix to results
+        results['z_matrix'] = z_matrix
+        results['bottom_half'] = bottom_half
+        results['top_half'] = top_half
+        results['mid_category_partition'] = mid_category_partition
+        
         return results
         
     except Exception as e:
@@ -1417,9 +1453,6 @@ def confirmatory_report(result):
     Returns:
         list: A list of report items (strings and DataFrames).
     """
-    # Remove the problematic st.write call
-    # st.write(result)
-    
     try:
         report_items = []
         
@@ -1697,8 +1730,72 @@ def confirmatory_report(result):
             else:
                 report_items.append(f"Note: The last satisfaction level (Level {constraint_index+1}) was omitted during the analysis.")
         
-     
-        # Return the report items
+        # Add Z-test for stochastic ordering
+        report_items.append("### Z-test for Stochastic Ordering")
+        report_items.append("--------------------------------------")
+        
+        # Get dimensions and data
+        contingency_table = result['observed']
+        satisfaction_partition = result['satisfaction_partition']
+        mid_category = np.ceil(contingency_table.shape[1] / 2).astype(int)
+        mid_category_partition = satisfaction_partition[mid_category - 1]  # -1 for 0-based indexing
+        
+        # Get collapsed contingency table rows
+        contingency_table_collapsed_rows = result['collapsed_contingency_table_rows']
+        
+        # Calculate bottom and top halves
+        bottom_mask = np.array([p <= mid_category_partition for p in satisfaction_partition])
+        top_mask = np.array([p > mid_category_partition for p in satisfaction_partition])
+        
+        # Handle both matrix and vector cases
+        if len(contingency_table_collapsed_rows.shape) > 1:
+            bottom_half = np.sum(contingency_table_collapsed_rows[:, bottom_mask], axis=1)
+            top_half = np.sum(contingency_table_collapsed_rows[:, top_mask], axis=1)
+        else:
+            bottom_half = contingency_table_collapsed_rows[bottom_mask]
+            top_half = contingency_table_collapsed_rows[top_mask]
+        
+        # Create the matrix for display
+        num_cluster = len(np.unique(result['brand_cluster']))
+        temp = np.full((num_cluster + 1, num_cluster + 1), "", dtype=object)
+        
+        # Fill headers
+        temp[0, 0] = "Brands"
+
+        
+        # Fill brand labels
+        for i in range(num_cluster):
+            brand_idx = result['stochastic_ordering'][i] if result.get('stochastic_ordering') is not None else i
+            cluster_ids = sorted(brand_clusters.keys())
+            if brand_idx < len(cluster_ids):
+                cluster_id = cluster_ids[brand_idx]
+                brands = brand_clusters[cluster_id]
+                brand_label = f"Brand {brands[0]}" if len(brands) == 1 else f"Brands {', '.join(map(str, brands))}"
+            else:
+                brand_label = f"Brand Cluster {i+1}"
+            
+            temp[i + 1, 0] = brand_label
+            temp[0, i + 1] = brand_label
+            temp[i + 1, i + 1] = "\\"
+        
+        # Fill Z-test results
+        for i in range(num_cluster):
+            for j in range(i + 1, num_cluster):
+                bottom_i = bottom_half[i]
+                top_i = top_half[i]
+                bottom_j = bottom_half[j]
+                top_j = top_half[j]
+                
+                # Calculate z-statistic
+                z_ij = (np.log(top_i/bottom_i) - np.log(top_j/bottom_j)) / np.sqrt(1/top_i + 1/bottom_i + 1/top_j + 1/bottom_j)
+                
+                if z_ij > 1.645:  # qnorm(0.95)
+                    temp[i + 1, j + 1] = "X"
+        
+        # Convert to DataFrame for better display
+        z_test_df = pd.DataFrame(temp)
+        report_items.append(z_test_df)
+        
         return report_items
         
     except Exception as e:
@@ -2273,9 +2370,73 @@ def exploratory_report(result):
                 report_items.append(f"Note: The last satisfaction level (Level {constraint_index+1}) was omitted during the analysis.")
         
         z_matrix = result['z_matrix']
-        report_items.append("### Z-Matrix")
-        report_items.append(z_matrix)
-        # Return the report items
+
+        
+        # Add Z-test for stochastic ordering
+        report_items.append("### Z-test for Stochastic Ordering")
+        report_items.append("--------------------------------------")
+        
+        # Get dimensions and data
+        contingency_table = result['observed']
+        satisfaction_partition = result['satisfaction_partition']
+        mid_category = np.ceil(contingency_table.shape[1] / 2).astype(int)
+        mid_category_partition = satisfaction_partition[mid_category - 1]  # -1 for 0-based indexing
+        
+        # Get collapsed contingency table rows
+        contingency_table_collapsed_rows = result['collapsed_contingency_table_rows']
+        
+        # Calculate bottom and top halves
+        bottom_mask = np.array([p <= mid_category_partition for p in satisfaction_partition])
+        top_mask = np.array([p > mid_category_partition for p in satisfaction_partition])
+        
+        # Handle both matrix and vector cases
+        if len(contingency_table_collapsed_rows.shape) > 1:
+            bottom_half = np.sum(contingency_table_collapsed_rows[:, bottom_mask], axis=1)
+            top_half = np.sum(contingency_table_collapsed_rows[:, top_mask], axis=1)
+        else:
+            bottom_half = contingency_table_collapsed_rows[bottom_mask]
+            top_half = contingency_table_collapsed_rows[top_mask]
+        
+        # Create the matrix for display
+        num_cluster = len(np.unique(result['brand_cluster']))
+        temp = np.full((num_cluster + 1, num_cluster + 1), "", dtype=object)
+        
+        # Fill headers
+        temp[0, 0] = "Brands"
+        
+        # Fill brand labels
+        for i in range(num_cluster):
+            brand_idx = result['stochastic_ordering'][i] if result.get('stochastic_ordering') is not None else i
+            cluster_ids = sorted(brand_clusters.keys())
+            if brand_idx < len(cluster_ids):
+                cluster_id = cluster_ids[brand_idx]
+                brands = brand_clusters[cluster_id]
+                brand_label = f"Brand {brands[0]}" if len(brands) == 1 else f"Brands {', '.join(map(str, brands))}"
+            else:
+                brand_label = f"Brand Cluster {i+1}"
+            
+            temp[i + 1, 0] = brand_label
+            temp[0, i + 1] = brand_label
+            temp[i + 1, i + 1] = "\\"
+        
+        # Fill Z-test results
+        for i in range(num_cluster):
+            for j in range(i + 1, num_cluster):
+                bottom_i = bottom_half[i]
+                top_i = top_half[i]
+                bottom_j = bottom_half[j]
+                top_j = top_half[j]
+                
+                # Calculate z-statistic
+                z_ij = (np.log(top_i/bottom_i) - np.log(top_j/bottom_j)) / np.sqrt(1/top_i + 1/bottom_i + 1/top_j + 1/bottom_j)
+                
+                if z_ij > 1.645:  # qnorm(0.95)
+                    temp[i + 1, j + 1] = "X"
+        
+        # Convert to DataFrame for better display
+        z_test_df = pd.DataFrame(temp)
+        report_items.append(z_test_df)
+        
         return report_items
         
     except Exception as e:
