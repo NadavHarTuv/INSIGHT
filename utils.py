@@ -219,6 +219,8 @@ def load_data(uploaded_file, analysis_method):
                 if brand_col and ranking_col:
                     brand_col = brand_col - 1
                     ranking_col = ranking_col - 1
+                    st.session_state['ranking_brand_col'] = brand_col
+                    st.session_state['ranking_level_col'] = ranking_col
                     contingency_table = pd.crosstab(raw_data.iloc[:, brand_col],
                                                   raw_data.iloc[:, ranking_col])
                     # Ensure columns are in order

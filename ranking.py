@@ -2454,3 +2454,40 @@ def exploratory_report(result):
         import traceback
         traceback.print_exc()
         return [f"Error generating report: {str(e)}"]
+
+def add_target_column_ranking(data, brands, ranking_range, brand_col, ranking_col):
+    """
+    Create a target column for explanatory variable analysis in ranking.
+    
+    Args:
+        data (pd.DataFrame): The raw data with rankings
+        brands (list): List of brand indices (1-based) to consider
+        ranking_range (list): List of ranking values to consider [min_rank, max_rank] (1-based)
+        brand_col (int): Column index for brands (0-based)
+        ranking_col (int): Column index for rankings (0-based)
+    
+    Returns:
+        pd.DataFrame: Data with target column added (1 if specified brands have rankings in range, 2 otherwise)
+    """
+    try:
+        if brand_col is None or ranking_col is None:
+            raise ValueError("brand_col and ranking_col must be provided")
+            
+        # Create a copy of the data
+        new_data = data.copy()
+        
+        # Create a mask for rows where brand is in brands list and ranking is in range
+        mask = (data.iloc[:, brand_col].isin(brands)) & \
+               (data.iloc[:, ranking_col] >= ranking_range[0]) & \
+               (data.iloc[:, ranking_col] <= ranking_range[1])
+        
+        # Create target column (default to 2)
+        new_data['target'] = 2
+        
+        # Set target=1 for rows matching our condition
+        new_data.loc[mask, 'target'] = 1
+        
+        return new_data
+    except Exception as e:
+        print(f"Error in add_target_column_ranking: {str(e)}")
+        return None

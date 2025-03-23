@@ -792,138 +792,145 @@ elif selected_method == 'Ranking' and st.session_state.get('transformed_data') i
     # Model selection for Ranking analysis
     ranking_model = st.sidebar.selectbox(
         "Select Ranking Model",
-        ["Confirmatory", "Exploratory", "Explanatory", "Explanatory Variable"],
+        ["Exploratory", "Confirmatory", "Explanatory Variable"],
         key="ranking_model_selection"
     )
     
-    # User input for satisfaction constraint.
-    # Only accept "None", "First", or "Last" as options
-    satisfaction_constraint = st.sidebar.selectbox(
-        "Satisfaction constraint",
-        ["None", "First", "Last"],
-        key="ranking_sat_constraint"
-    )
-    
-    # User input for upper polarity index (comma-separated if multiple)
-    upper_polarity_str = st.sidebar.text_input(
-        "Enter upper polarity index (e.g., '4-7' for levels 4 to 7, or comma-separated numbers)",
-        value="",
-        key="ranking_upper_polarity"
-    )
-    
-    # Parse the upper polarity indices if provided
-    def parse_upper_polarity(s):
-        try:
-            # Check if it's a range format like "4-7"
-            if "-" in s and s.count("-") == 1 and "," not in s:
-                start, end = map(int, s.split("-"))
-                return list(range(start, end + 1))
-            else:
-                # Otherwise, treat as comma-separated values
-                parts = [p.strip() for p in s.split(",") if p.strip()]
-                return [int(p) for p in parts]
-        except Exception as e:
-            st.sidebar.error(f"Invalid upper polarity index input: {str(e)}")
-            return None
-    
-    upper_polarity_idx = parse_upper_polarity(upper_polarity_str) if upper_polarity_str else None
-
-    if st.sidebar.button("Go!", key="ranking_go"):
-        # Convert satisfaction constraint input appropriately:
-        if satisfaction_constraint == "None":
-            sat_constraint = None  # Use None (Python object), not the string "None"
-        elif satisfaction_constraint in ["First", "Last"]:
-            sat_constraint = satisfaction_constraint  # Keep as is (confirmatory_computation handles this)
-        else:
+    # Only show satisfaction constraint and upper polarity for Exploratory and Confirmatory
+    if ranking_model in ["Exploratory", "Confirmatory"]:
+        # User input for satisfaction constraint
+        satisfaction_constraint = st.sidebar.selectbox(
+            "Satisfaction constraint",
+            ["None", "First", "Last"],
+            key="ranking_sat_constraint"
+        )
+        
+        # User input for upper polarity index
+        upper_polarity_str = st.sidebar.text_input(
+            "Enter upper polarity index (e.g., '4-7' for levels 4 to 7, or comma-separated numbers)",
+            value="",
+            key="ranking_upper_polarity"
+        )
+        
+        # Parse the upper polarity indices if provided
+        def parse_upper_polarity(s):
             try:
-                # Convert to zero-based index
-                sat_constraint = int(satisfaction_constraint) - 1
+                # Check if it's a range format like "4-7"
+                if "-" in s and s.count("-") == 1 and "," not in s:
+                    start, end = map(int, s.split("-"))
+                    return list(range(start, end + 1))
+                else:
+                    # Otherwise, treat as comma-separated values
+                    parts = [p.strip() for p in s.split(",") if p.strip()]
+                    return [int(p) for p in parts]
             except Exception as e:
-                st.sidebar.error(f"Error processing satisfaction constraint: {str(e)}")
-                sat_constraint = None
+                st.sidebar.error(f"Invalid upper polarity index input: {str(e)}")
+                return None
+        
+        upper_polarity_idx = parse_upper_polarity(upper_polarity_str) if upper_polarity_str else None
+    
+    # For Explanatory Variable, show different inputs
+    elif ranking_model == "Explanatory Variable":
+        # Use raw_data for this analysis
+        data_expl = st.session_state['raw_data']
+        
+        # Check if we have the necessary column information
+        brand_col = st.session_state.get('ranking_brand_col')
+        ranking_col = st.session_state.get('ranking_level_col')
 
-        try:
-            if ranking_model == "Confirmatory":
-                # Call the confirmatory computation function with user inputs
-                comp_result = ranking.confirmatory_computation(
-                    data, 
-                    upper_polarity_idx=upper_polarity_idx, 
-                    satisfaction_constraint=sat_constraint,
-                    debug=False,
-                    mu_diff_threshold=1.96
-                )
+        
+        if brand_col is None or ranking_col is None:
+            st.error("Please select the brand and ranking columns in the data format section first.")
+        else:
+            st.sidebar.subheader("Explanatory Variable Options")
+            
+            # Input for brands to consider
+            brands_str = st.sidebar.text_input(
+                "Enter brand indices (comma-separated or ranges, e.g. 1,3-5)",
+                value="",
+                key="ranking_expl_brands"
+            )
+            
+            # Input for satisfaction level range
+            ranking_range_str = st.sidebar.text_input(
+                "Enter satisfaction level range (e.g. 4-5 for levels 4 to 5)",
+                value="",
+                key="ranking_expl_range"
+            )
+            
+            # Input for explanatory variable indices
+            expl_vars_str = st.sidebar.text_input(
+                "Enter explanatory variable indices (comma-separated or ranges, e.g. 2,4-6)",
+                value="",
+                key="ranking_expl_vars"
+            )
+            
+            sort_explanatory = st.sidebar.checkbox(
+                "Sort explanatory variables?",
+                value=True,
+                key="ranking_expl_sort"
+            )
+
+            if st.sidebar.button("Go!", key="ranking_expl_go"):
+                try:
+                    # Parse brands and ranking range
+                    brands = utils.parse_indices_string(brands_str)
+                    ranking_range = utils.parse_indices_string(ranking_range_str)
+                    
+                    if not brands or not ranking_range or len(ranking_range) != 2:
+                        st.sidebar.error("Please specify valid brand indices and satisfaction level range.")
+                    else:
+                        # Parse explanatory variable indices
+                        expl_indices = utils.parse_indices_string(expl_vars_str)
+                        # Convert 1-based indices to 0-based
+                        expl_indices = [i - 1 for i in expl_indices]
+                        # Map these indices to column names
+                        explanatory_vars_list = [
+                            data_expl.columns[i] for i in expl_indices if i < len(data_expl.columns)
+                        ]
+                        
+                        # Create new data with target column using the correct columns
+                        new_data = ranking.add_target_column_ranking(
+                            data_expl, 
+                            brands, 
+                            ranking_range,
+                            brand_col=brand_col,
+                            ranking_col=ranking_col
+                        )
+                        
+                        if new_data is not None:
+                            # Rename columns to match expected format
+                            new_data.columns = [i+1 for i in range(len(new_data.columns))]
+                            new_data.index = new_data.index + 1
+                            
+                            # Sort explanatory variables if requested
+                            if sort_explanatory and explanatory_vars_list:
+                                # Get the target column index (should be the last column)
+                                target_col = len(new_data.columns)-1
+                                # Sort the explanatory variables
+                                sorted_order = threedim.sort_explanatory_variables(new_data, target_col, [explanatory_vars_list])
+                                # Convert sorted indices to names
+                                sorted_expl_vars = [data_expl.columns[i]+1 for i in sorted_order]
+                                # Display sorted order
+                                sorted_order_str = ", ".join(map(str, sorted_expl_vars))
+                                st.markdown(f"**Sorted explanatory variables:** {sorted_order_str}")
+                            
+                            # Save results and create new tab
+                            st.session_state['results'][key].append(new_data)
+                            new_tab_label = f"Explanatory Result {len(st.session_state['results'][key])}"
+                            st.session_state['tabs'][key].append(new_tab_label)
+                            
+                            # Display data and provide download option
+                            st.write(new_data)
+                            csv = new_data.to_csv(index=False, header=False).encode('utf-8')
+                            st.download_button("Download New CSV", data=csv, file_name="ranking_explanatory.csv", mime="text/csv")
+                        else:
+                            st.error("Error creating target column. Please check your inputs.")
+                except Exception as e:
+                    st.error(f"Error in explanatory analysis: {str(e)}")
+                    import traceback
+                    st.code(traceback.format_exc())
                 
-                # Generate the report
-                report_items = ranking.confirmatory_report(comp_result)
-                
-                # Make sure 'comp_results' is initialized for this key
-                if 'comp_results' not in st.session_state:
-                    st.session_state['comp_results'] = {}
-                if key not in st.session_state['comp_results']:
-                    st.session_state['comp_results'][key] = []
-                
-                # Store results for analysis and plotting
-                st.session_state['results'][key].append(report_items)
-                st.session_state['comp_results'][key].append({
-                    'analysis_type': 'confirmatory',
-                    'results': comp_result,
-                    'contingency_table': data
-                })
-                
-                new_tab_label = f"Confirmatory {len(st.session_state['results'][key])}"
-                st.session_state['tabs'][key].append(new_tab_label)
-                
-            elif ranking_model == "Exploratory":
-                # Call the exploratory computation function with user inputs
-                comp_result = ranking.exploratory_computation(
-                    data, 
-                    upper_polarity_idx=upper_polarity_idx, 
-                    satisfaction_constraint=sat_constraint,
-                    debug=False
-                )
-                
-                # Generate the report
-                report_items = ranking.exploratory_report(comp_result)
-                
-                # Make sure 'comp_results' is initialized for this key
-                if 'comp_results' not in st.session_state:
-                    st.session_state['comp_results'] = {}
-                if key not in st.session_state['comp_results']:
-                    st.session_state['comp_results'][key] = []
-                
-                # Store results for analysis and plotting
-                st.session_state['results'][key].append(report_items)
-                st.session_state['comp_results'][key].append({
-                    'analysis_type': 'exploratory',
-                    'results': comp_result,
-                    'contingency_table': data
-                })
-                
-                new_tab_label = f"Exploratory {len(st.session_state['results'][key])}"
-                st.session_state['tabs'][key].append(new_tab_label)
-                
-            elif ranking_model == "Explanatory":
-                # Placeholder for explanatory analysis
-                st.session_state['results'][key].append({
-                    "mode": "ranking_explanatory",
-                    "report": ["Explanatory analysis not yet implemented"]
-                })
-                new_tab_label = f"Explanatory {len(st.session_state['results'][key])}"
-                st.session_state['tabs'][key].append(new_tab_label)
-                
-            elif ranking_model == "Explanatory Variable":
-                # Placeholder for explanatory variable analysis
-                st.session_state['results'][key].append({
-                    "mode": "ranking_explanatory_var",
-                    "report": ["Explanatory variable analysis not yet implemented"]
-                })
-                new_tab_label = f"Expl. Variable {len(st.session_state['results'][key])}"
-                st.session_state['tabs'][key].append(new_tab_label)
-                
-        except Exception as e:
-            st.error(f"Error in {ranking_model.lower()} computation: {str(e)}")
-            import traceback
-            st.code(traceback.format_exc())
     
     # Display Ranking results in tabs.
     tabs = st.tabs(st.session_state['tabs'][key])
