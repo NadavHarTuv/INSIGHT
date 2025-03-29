@@ -10,6 +10,7 @@ from scipy.stats import chi2, norm
 import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib.figure import Figure
+from itertools import permutations
 
 # Add this utility function near the top of the file, after imports
 def safe_report_item(item):

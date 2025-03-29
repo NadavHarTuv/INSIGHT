@@ -488,16 +488,16 @@ elif selected_method == 'Survival' and st.session_state.get('transformed_data') 
                     new_data.columns = [i+1 for i in range(len(new_data.columns))]
                     new_data.index = new_data.index+1
                     
-                    # If the user opts to sort explanatory variables and has provided indices,
-                    # use threedim.sort_explanatory_variables.
+                    # Sort explanatory variables if requested
                     if sort_explanatory and explanatory_vars_list:
-                        # Note: threedim.sort_explanatory_variables expects the data,
-                        # the target column, and a list of explanatory columns. In our case,
-                        # we provide a list inside a list (to match its usage in your code).
-                        sorted_order = threedim.sort_explanatory_variables(new_data, survival_col, [explanatory_vars_list])
-                        # sorted_order is likely a list of column indices. Convert to names.
-                        sorted_expl_vars = [data_expl.columns[i]+1 for i in sorted_order]
-                        # Print nicely using markdown.
+                        # Get the target column index (should be the last column)
+                        target_col = len(new_data.columns) - 1  # Last column is target
+                        # Sort the explanatory variables
+                        sorted_indices = threedim.sort_explanatory_variables(new_data, target_col, [explanatory_vars_list])
+                        # The sorted_indices are the actual explanatory column indices from our list
+                        # Convert these to 1-based user-friendly indices
+                        sorted_expl_vars = [index + 1 for index in sorted_indices]
+                        # Display sorted order
                         sorted_order_str = ", ".join(map(str, sorted_expl_vars))
                         st.markdown(f"**Sorted explanatory variables:** {sorted_order_str}")
                     
@@ -906,11 +906,13 @@ elif selected_method == 'Ranking' and st.session_state.get('transformed_data') i
                             # Sort explanatory variables if requested
                             if sort_explanatory and explanatory_vars_list:
                                 # Get the target column index (should be the last column)
-                                target_col = len(new_data.columns)-1
+                                target_col = len(new_data.columns) - 1  # Last column is target
                                 # Sort the explanatory variables
-                                sorted_order = threedim.sort_explanatory_variables(new_data, target_col, [explanatory_vars_list])
-                                # Convert sorted indices to names
-                                sorted_expl_vars = [data_expl.columns[i]+1 for i in sorted_order]
+                                sorted_indices = threedim.sort_explanatory_variables(new_data, target_col, [explanatory_vars_list])
+                                # The sorted_indices are the actual explanatory column indices from our list
+                                # Convert these to 1-based user-friendly indices
+                                st.write(f'sorted_indices: {sorted_indices}')
+                                sorted_expl_vars = [index + 1 for index in sorted_indices]
                                 # Display sorted order
                                 sorted_order_str = ", ".join(map(str, sorted_expl_vars))
                                 st.markdown(f"**Sorted explanatory variables:** {sorted_order_str}")

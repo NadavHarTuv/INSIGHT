@@ -165,13 +165,17 @@ def loglin_computation(data, which_x, p_value_threshold=0.05):
     if len(which_x) == 0:
         expected = np.full(observed.shape, np.mean(observed))
         l_sq_stat = 2 * np.sum(observed * np.log(observed / expected + 1e-10))
-        d_o_f = np.prod(observed.shape) - 1
+        d_o_f = np.prod([(dim - 1) for dim in observed.shape])
         lambda_coef = {'Intercept': np.log(np.mean(observed)) - np.log(np.sum(observed))}
     else:
         computed = loglin(data, which_x)
         expected = computed['expected']
-        l_sq_stat = computed['lrt']
-        d_o_f = computed['df']
+        # l_sq_stat = computed['lrt']
+        l_sq_stat = 2 * np.sum(observed * np.log(observed / expected + 1e-10))
+        # d_o_f = computed['df']
+        # st.write(observed)
+        # st.write(f'observed.shape: {observed.shape}')
+        d_o_f = np.prod([(dim - 1) for dim in observed.shape])
         lambda_coef = computed['lambda_coef']
     p_value = np.exp(np.log(chi2.sf(l_sq_stat, d_o_f) + 1e-10))
     log_p_value = np.log(p_value + 1e-10)
@@ -181,8 +185,8 @@ def loglin_computation(data, which_x, p_value_threshold=0.05):
     return {
         'observed': observed,
         'expected': expected,
-        'lrt': l_sq_stat,
-        'df': d_o_f,
+        'l_sq_stat': l_sq_stat,
+        'd_o_f': d_o_f,
         'p_value': p_value,
         'log_p_value': log_p_value,
         'model_is_fit': model_is_fit,
@@ -230,7 +234,7 @@ def all_coef_report(computed):
     models = []
     for i in range(8):
         report += f"**{computed['coef_texts'][i]}** \n\n"
-        report += f"      D.O.F = {computed['models'][i]['d_o_f']}    L² = {np.round(computed['models'][i]['pearson_chi2'],2)}    p-value = {utils.signif(computed['models'][i]['p_value'],2)}\n"
+        report += f"      D.O.F = {computed['models'][i]['d_o_f']}    L² = {np.round(computed['models'][i]['l_sq_stat'],2)}    p-value = {utils.signif(computed['models'][i]['p_value'],2)}\n"
         if computed['models'][i]['p_value'] > 0.05:
             report += '    Model fits the data \n\n'
         else:
@@ -899,96 +903,118 @@ def model_value_tab(threedim_result):
                     
         st.markdown('</div>', unsafe_allow_html=True)
 
+import numpy as np
+import pandas as pd
+from scipy.stats import chi2
+
+# These helper functions need to be defined (or imported) in your codebase.
+# For example:
+# from independence import l_sq_chi_sq, expected_count
+# from loglin import three_dimensional_loglin_computation
+
+import numpy as np
+import pandas as pd
+from scipy.stats import chi2
+
+# It is assumed that the following helper functions are defined:
+# - l_sq_chi_sq(observed, expected)
+# - expected_count(observed)
+# - three_dimensional_loglin_computation(observed, coeff)
 
 def sort_explanatory_variables(data, target_col, explanatory_cols):
     """
-    Optimized version of sort_explanatory_variables.
+    Sort explanatory variables by their importance in predicting the target variable.
     
     Parameters:
       data: DataFrame with the full dataset.
-      target_col: The column (by index) representing the target.
-      explanatory_cols: A nested list of column indices (we take the first element).
+      target_col: The column index representing the target.
+      explanatory_cols: A list of column indices or a nested list (we'll handle both).
       
     Returns:
-      A list of explanatory column indices (from the input list) sorted by selection order.
+      A list of explanatory column indices sorted by selection order.
     """
     import numpy as np
     import pandas as pd
     from scipy.stats import chi2
-    # It is assumed that the following functions exist and are imported:
-    # independence.l_sq_chi_sq, independence.expected_count, and loglin_computation
-
-    # Make a copy and re-label columns as simple integers.
-    df = data.copy()
-    df.columns = np.arange(data.shape[1])
-    explanatory_cols = explanatory_cols[0]  # assuming nested list as input
+    
+    # Handle nested list if provided (make it flat)
+    if isinstance(explanatory_cols, list) and len(explanatory_cols) > 0 and isinstance(explanatory_cols[0], list):
+        explanatory_cols = explanatory_cols[0]
+    
+    # Number of explanatory variables
     num_explanatory = len(explanatory_cols)
+    
+    # Trivial case - return the single explanatory column
     if num_explanatory == 1:
-        return [explanatory_cols[0]]
+        return explanatory_cols
     
-    # Cache mappings for a given column (to avoid recalculating unique values)
-    mapping_cache = {}
-    bin_cache = {}
-    def get_mapping(col):
-        # If already cached, return; otherwise compute and store.
-        if col not in mapping_cache:
-            series = df.loc[:, col]
-            uniques = np.sort(series.unique())
-            mapping = {val: idx for idx, val in enumerate(uniques)}
-            mapping_cache[col] = mapping
-            bin_cache[col] = np.arange(len(uniques) + 1) - 0.5
-        return mapping_cache[col], bin_cache[col]
-    
-    # INITIAL SELECTION: For each candidate explanatory variable,
-    # compute a contingency table between target and candidate.
+    # Initialize arrays to track selection
     selected_col = np.zeros(num_explanatory)
     log_p_values = np.zeros(num_explanatory)
+    
+    # INITIAL SELECTION: Compute chi-square and p-value for each explanatory variable
     for i in range(num_explanatory):
-        obs = pd.crosstab(df.loc[:, target_col], df.loc[:, explanatory_cols[i]])
+        # Create 2D contingency table between target and this explanatory variable
+        obs = pd.crosstab(data.iloc[:, target_col], data.iloc[:, explanatory_cols[i]])
+
+        # Compute likelihood ratio statistic
         l_sq_stat = independence.l_sq_chi_sq(obs, independence.expected_count(obs))
+
         d_o_f = np.prod(np.array(obs.shape) - 1)
+
         log_p_values[i] = chi2.logsf(l_sq_stat, df=d_o_f)
-    # Select the candidate with the smallest log p-value.
+
+    
+    # Select the variable with the smallest log p-value (most significant)
     init_index = np.argmin(log_p_values)
     selected_col[init_index] = 1
-    encoded_var = df.iloc[:, explanatory_cols[init_index]]
     
-    coeff = [[0], [1], [2], [0, 1], [0, 2], [1, 2]]
+    # Start with the first selected variable
+    encoded_var = data.iloc[:, explanatory_cols[init_index]].copy()
     
-    # STEPWISE SELECTION: Iteratively add remaining explanatory variables.
-    for t in range(1, num_explanatory):
+    # Coefficient structure for the three-dimensional log-linear model
+    # Matches the R implementation's coeff <- list(1, 2, 3, c(1,2), c(1,3), c(2,3))
+    coeff = [[0, 1], [0, 2], [1, 2]]
+    
+    # STEPWISE SELECTION: Iteratively add remaining variables
+    for t in range(2, num_explanatory + 1):
         log_p_values = np.full(num_explanatory, -np.inf)
+        
         for i in range(num_explanatory):
             if selected_col[i] > 0:
-                continue
-            # Build the combined data: current composite (encoded_var), target, and candidate.
-            combined = pd.concat([encoded_var, df[[target_col, explanatory_cols[i]]]], axis=1)
+                continue  # Skip already selected variables
             
-            mapped_list = []
-            bins_list = []
-            for col in combined.columns:
-                # Ensure we have a Series.
-                series = combined[col]
-                if isinstance(series, pd.DataFrame):
-                    series = series.iloc[:, 0]
-                # Use cached mapping if possible.
-                uniques = np.sort(series.unique())
-                mapping = {val: idx for idx, val in enumerate(uniques)}
-                mapped_list.append(series.map(mapping).to_numpy())
-                bins_list.append(np.arange(len(uniques)+1) - 0.5)
-            # Create a 2D array: each row corresponds to one observation, each column to one variable.
-            mapped_data = np.vstack(mapped_list).T
-            # Use histogramdd to compute the contingency table.
-            observed_i, _ = np.histogramdd(mapped_data, bins=bins_list)
-            log_lin_result = loglin_computation(observed_i, coeff)
+            # Create the dataframe for the 3D contingency table
+            # This matches the R code: table(as.data.frame(cbind(encoded.var, all.data[,target.col], all.data[,explanatory.col[i]])))
+            combined_data = pd.DataFrame({
+                'encoded': encoded_var,
+                'target': data.iloc[:, target_col],
+                'candidate': data.iloc[:, explanatory_cols[i]]
+            })
+            
+            # Create 3D contingency table
+            observed_3d = pd.crosstab(
+                index=[combined_data['encoded'], combined_data['target']],
+                columns=combined_data['candidate']
+            ).values.reshape(-1, data.iloc[:, target_col].nunique(), 
+                             data.iloc[:, explanatory_cols[i]].nunique())
+    
+            
+            
+            # Use the original permutation for the actual computation
+            log_lin_result = loglin_computation(observed_3d, coeff)
             log_p_values[i] = log_lin_result['log_p_value']
+        
+        # Select the variable with the highest log p-value (best fit)
         next_index = np.argmax(log_p_values)
-        selected_col[next_index] = t + 1
-        # Update the composite encoded variable.
-        if t < num_explanatory - 1:
-            selected_var = df.loc[:, explanatory_cols[next_index]]
+        selected_col[next_index] = t
+        
+        # Update the composite encoded variable if more iterations remain
+        if t < num_explanatory:
+            selected_var = data.iloc[:, explanatory_cols[next_index]]
             num_new_category = selected_var.max()
             encoded_var = encoded_var * (num_new_category + 1) + selected_var
     
-    sorted_order = np.argsort(selected_col)
-    return [explanatory_cols[idx] for idx in sorted_order]
+    # Return explanatory columns in order of importance
+    # This matches the R code: return(explanatory.col[order(selected.col)])
+    return [explanatory_cols[i] for i in np.argsort(selected_col)]
