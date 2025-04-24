@@ -103,18 +103,18 @@ def loglin(data, which_x):
     observed = df_indices['count'].values
     pearson_chi2 = np.sum((observed - model.mu) ** 2 / model.mu)
     df_resid = model.df_resid
-    lambda_coeffs = dict(model.params)
+    # lambda_coeffs = dict(model.params)
     return {
         'expected': expected,
         'lrt': lrt,
         'df': df_resid,
-        'params': lambda_coeffs,
+        'params': model.params,
         'pearson_chi2': pearson_chi2,
-        'lambda_coef': lambda_coeffs
+        # 'lambda_coef': lambda_coeffs
     }
 
 def compute_lambda_coeffs(expected, data, which_x):
-    # st.write(f'which_x: {which_x}')
+
     """
     Compute lambda coefficients from the fitted values.
     """
@@ -172,16 +172,17 @@ def loglin_computation(data, which_x, p_value_threshold=0.05):
         expected = computed['expected']
         # l_sq_stat = computed['lrt']
         l_sq_stat = 2 * np.sum(observed * np.log(observed / expected + 1e-10))
+        pearson_chi2 = computed['pearson_chi2']
         # d_o_f = computed['df']
         # st.write(observed)
         # st.write(f'observed.shape: {observed.shape}')
         d_o_f = np.prod([(dim - 1) for dim in observed.shape])
-        lambda_coef = computed['lambda_coef']
     p_value = np.exp(np.log(chi2.sf(l_sq_stat, d_o_f) + 1e-10))
     log_p_value = np.log(p_value + 1e-10)
     model_is_fit = p_value > p_value_threshold
     residual_matrix = (observed - expected) / np.sqrt(expected + 1e-10)
     num_signif_residual = np.sum(np.abs(residual_matrix) > 1.64)
+    lambda_coef = compute_lambda_coeffs(expected, data, which_x)
     return {
         'observed': observed,
         'expected': expected,
@@ -192,7 +193,8 @@ def loglin_computation(data, which_x, p_value_threshold=0.05):
         'model_is_fit': model_is_fit,
         'std_residual': residual_matrix,
         'num_signif_residual': num_signif_residual,
-        'lambda_coef': lambda_coef
+        'lambda_coef': lambda_coef,
+        'pearson_chi2': pearson_chi2
     }
     
 def all_coef_computation(data):
@@ -352,25 +354,26 @@ def coef_string(coef):
     
 def select_coef_report(computed):
     # Section 1: Report Header
-    report1 = ' # 3-Dimensional Model Report \n\n'
-    report1 += ' ## Results for the selected model: \n\n'
-    report1 += ' ### Observed Data Matrix: \n\n' 
+    report1 = '# 3-Dimensional Model Report\n\n'
+    report1 += '## Results for the selected model:\n\n'
+    report1 += '### Observed Data Matrix:\n\n' 
     
     # DataFrame for Observed Data Matrix
     original_df = array_to_dataframe(computed['original'])
     original_df.rename(columns={original_df.columns[-1]: 'count'}, inplace=True)
     
     # Section 2: Expected Data Matrix
-    report2 = '### Expected Data Matrix: \n\n'
+    report2 = '### Expected Data Matrix:\n\n'
     expected_df = array_to_dataframe(np.round(computed['model']['expected'], 2))
     expected_df.rename(columns={expected_df.columns[-1]: 'expected count'}, inplace=True)
     
     # Section 3: Model Statistics
     report3 = f"D.O.F = {computed['model']['d_o_f']}    L² = {np.round(computed['model']['pearson_chi2'], 2)}    p-value = {utils.signif(computed['model']['p_value'], 2)}\n"
-    report3 += '\n### Information on selected model \n'
+    report3 += '\n### Information on selected model\n'
     report3 += f"**Lambda coefficients of the selected model: Intercept {coef_string(computed['which_x'])}**\n\n"
     
     lambda_coefs = computed['model']['lambda_coef']
+    
     for key, value in lambda_coefs.items():
         if key == 'Intercept':
             report3 += f'Coefficient of "Intercept":\n1 : {value:.4f}\n\n'
@@ -399,10 +402,10 @@ def select_coef_report(computed):
     
     report3 += '**Model Diagnostics**\n\n'
     if computed['model']['model_is_fit']:
-        report3 += 'Model fits the observed data \n'
+        report3 += 'Model fits the observed data\n'
     else:
-        report3 += 'Model does not fit the observed data \n\n'
-    report3 += '**Standardized residuals** \n\n'
+        report3 += 'Model does not fit the observed data\n\n'
+    report3 += '**Standardized residuals**\n\n'
     
     # DataFrame for Standardized Residuals
     resid_df = array_to_dataframe(np.round(computed['model']['std_residual'], 2))
@@ -971,6 +974,8 @@ def sort_explanatory_variables(data, target_col, explanatory_cols):
     
     # Start with the first selected variable
     encoded_var = data.iloc[:, explanatory_cols[init_index]].copy()
+    # st.write('encoded var 1:')
+    # st.write(encoded_var)
     
     # Coefficient structure for the three-dimensional log-linear model
     # Matches the R implementation's coeff <- list(1, 2, 3, c(1,2), c(1,3), c(2,3))
@@ -984,24 +989,32 @@ def sort_explanatory_variables(data, target_col, explanatory_cols):
             if selected_col[i] > 0:
                 continue  # Skip already selected variables
             
-            # Create the dataframe for the 3D contingency table
-            # This matches the R code: table(as.data.frame(cbind(encoded.var, all.data[,target.col], all.data[,explanatory.col[i]])))
+            # NEW CODE: Enforce complete category levels for a proper 3D contingency table
+            candidate_series = data.iloc[:, explanatory_cols[i]]
+            encoded_levels = np.arange(1, int(encoded_var.max()) + 1)
+            target_levels = np.arange(1, int(data.iloc[:, target_col].max()) + 1)
+            candidate_levels = np.arange(1, int(candidate_series.max()) + 1)
+            
             combined_data = pd.DataFrame({
-                'encoded': encoded_var,
-                'target': data.iloc[:, target_col],
-                'candidate': data.iloc[:, explanatory_cols[i]]
+                'encoded': pd.Categorical(encoded_var, categories=encoded_levels),
+                'target': pd.Categorical(data.iloc[:, target_col], categories=target_levels),
+                'candidate': pd.Categorical(candidate_series, categories=candidate_levels)
             })
             
-            # Create 3D contingency table
-            observed_3d = pd.crosstab(
+            contingency_table = pd.crosstab(
                 index=[combined_data['encoded'], combined_data['target']],
-                columns=combined_data['candidate']
-            ).values.reshape(-1, data.iloc[:, target_col].nunique(), 
-                             data.iloc[:, explanatory_cols[i]].nunique())
-    
+                columns=combined_data['candidate'],
+                dropna=False
+            )
             
+            encoded_unique = len(encoded_levels)
+            target_unique = len(target_levels)
+            candidate_unique = len(candidate_levels)
             
-            # Use the original permutation for the actual computation
+            full_index = pd.MultiIndex.from_product([encoded_levels, target_levels], names=['encoded', 'target'])
+            contingency_table = contingency_table.reindex(index=full_index, columns=candidate_levels, fill_value=0)
+            observed_3d = contingency_table.values.reshape(encoded_unique, target_unique, candidate_unique)
+            
             log_lin_result = loglin_computation(observed_3d, coeff)
             log_p_values[i] = log_lin_result['log_p_value']
         
@@ -1012,9 +1025,12 @@ def sort_explanatory_variables(data, target_col, explanatory_cols):
         # Update the composite encoded variable if more iterations remain
         if t < num_explanatory:
             selected_var = data.iloc[:, explanatory_cols[next_index]]
+            # Match the R code exactly: encoded.var <- encoded.var * (num.new.category + 1) + selected.var
             num_new_category = selected_var.max()
             encoded_var = encoded_var * (num_new_category + 1) + selected_var
+            # st.write('encoded var 2')
+            # st.write(encoded_var)
     
     # Return explanatory columns in order of importance
     # This matches the R code: return(explanatory.col[order(selected.col)])
-    return [explanatory_cols[i] for i in np.argsort(selected_col)]
+    return [explanatory_cols[i] for i in np.argsort(selected_col)][::-1]

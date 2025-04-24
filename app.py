@@ -130,13 +130,23 @@ if 'raw_data' not in st.session_state:
     st.session_state['raw_data'] = None
 if 'transformed_data' not in st.session_state:
     st.session_state['transformed_data'] = None
+if 'last_method' not in st.session_state:
+    st.session_state['last_method'] = None
 if 'results' not in st.session_state:
     st.session_state['results'] = {}
 if 'comp_results' not in st.session_state:
     st.session_state['comp_results'] = {}
 if 'tabs' not in st.session_state:
     st.session_state['tabs'] = {}
-    
+
+# Check if method changed and reset transformed_data if needed
+if st.session_state.get('last_method') is not None and st.session_state['last_method'] != selected_method:
+    # Method has changed since last run
+    st.session_state['transformed_data'] = None
+    # We keep raw_data since it might be usable across methods
+
+# Update the last method
+st.session_state['last_method'] = selected_method
 
 
 # Sidebar: File uploader
@@ -160,6 +170,9 @@ if key not in st.session_state['tabs']:
 if selected_method == 'Independence' and st.session_state.get('transformed_data') is not None:
     key = 'independence'
     data = st.session_state['transformed_data']
+    # Store the contingency table for future reference
+    st.session_state['indep_contingency_table'] = data
+    
     selected_model = st.sidebar.selectbox("Select Model", model_names['Independence'])
     
     # ------------------------
@@ -184,10 +197,14 @@ if selected_method == 'Independence' and st.session_state.get('transformed_data'
         orientation_ztest = st.sidebar.radio("Select orientation", ["Row", "Column"])
         # This helper will read the pair from a text_input and return either the
         # 0-based indices or None if invalid.
-        pair = independence.ztest_read_pair(
-            st.session_state['indep_contingency_table'],
-            orientation_ztest
-        )
+        # Ensure we have the contingency table in session state
+        if 'indep_contingency_table' in st.session_state:
+            pair = independence.ztest_read_pair(
+                st.session_state['indep_contingency_table'],
+                orientation_ztest
+            )
+        else:
+            pair = independence.ztest_read_pair(data, orientation_ztest)
 
     # -----------------------------------
     # 3) Chi Square Specific Inputs
@@ -243,90 +260,101 @@ if selected_method == 'Independence' and st.session_state.get('transformed_data'
 elif selected_method == '3-Dimensional' and st.session_state['transformed_data'] is not None:
     key = selected_method.lower().replace(' ', '_')
     data = st.session_state['transformed_data']
-    data_for_computations = threedim.transform_to_3d_array(data)
     
-    selected_model = st.sidebar.selectbox("Model Name", model_names['3-Dimensional'])
-    
-    # Then the user picks which type of 3D computation to do:
-    computation_choice = st.sidebar.radio(
-        "Computation Type",
-        ["All coefficients", "Select coefficients", "Target variable"]
-    )
-    
-    # We'll store the final result in computed_result
-    computed_result = None
-    
-    # ---------------------------
-    # A) All coefficients
-    # ---------------------------
-    if computation_choice == "All coefficients":
-        st.sidebar.write("Compute all possible 3D models.")
-        # When user clicks "Go!", do the all_coef_computation => all_coef_report
-        if st.sidebar.button("Go!"):
-            comp = threedim.all_coef_computation(data_for_computations)
-            computed_result = threedim.all_coef_report(comp)
-            # Save in session state
-            st.session_state['results'][key].append(computed_result)
-            new_tab_label = f"Result {len(st.session_state['results'][key])}"
-            st.session_state['tabs'][key].append(new_tab_label)
-    
-    # ---------------------------
-    # B) Select coefficients
-    # ---------------------------
-    elif computation_choice == "Select coefficients":
-        # Show hierarchical checkboxes
-        st.sidebar.write("Select which coefficients you want in the model.")
-        selected_coefs = threedim.select_coefs()  # This calls your function that updates X, Y, Z if X Y is chosen, etc.
+    try:
+        # Try to transform data to 3D array
+        data_for_computations = threedim.transform_to_3d_array(data)
         
-        # Then we parse those coefs into which_x
-        if st.sidebar.button("Go!"):
-            which_x = threedim.parse_selected_coefs(selected_coefs)
-            comp = threedim.select_coef_computation(data_for_computations, which_x)
-            computed_result = threedim.select_coef_report(comp)
-            # Save in session state
-            st.session_state['results'][key].append(computed_result)
-            new_tab_label = f"Result {len(st.session_state['results'][key])}"
-            st.session_state['tabs'][key].append(new_tab_label)
+        if data_for_computations is None:
+            st.warning("The data format is not suitable for 3D analysis. Please select X, Y, and Z columns to continue.")
+        else:
+            selected_model = st.sidebar.selectbox("Model Name", model_names['3-Dimensional'])
+            
+            # Then the user picks which type of 3D computation to do:
+            computation_choice = st.sidebar.radio(
+                "Computation Type",
+                ["All coefficients", "Select coefficients", "Target variable"]
+            )
+            
+            # We'll store the final result in computed_result
+            computed_result = None
+            
+            # ---------------------------
+            # A) All coefficients
+            # ---------------------------
+            if computation_choice == "All coefficients":
+                st.sidebar.write("Compute all possible 3D models.")
+                # When user clicks "Go!", do the all_coef_computation => all_coef_report
+                if st.sidebar.button("Go!"):
+                    comp = threedim.all_coef_computation(data_for_computations)
+                    computed_result = threedim.all_coef_report(comp)
+                    # Save in session state
+                    st.session_state['results'][key].append(computed_result)
+                    new_tab_label = f"Result {len(st.session_state['results'][key])}"
+                    st.session_state['tabs'][key].append(new_tab_label)
+            
+            # ---------------------------
+            # B) Select coefficients
+            # ---------------------------
+            elif computation_choice == "Select coefficients":
+                # Show hierarchical checkboxes
+                st.sidebar.write("Select which coefficients you want in the model.")
+                selected_coefs = threedim.select_coefs()  # This calls your function that updates X, Y, Z if X Y is chosen, etc.
+                
+                # Then we parse those coefs into which_x
+                if st.sidebar.button("Go!"):
+                    st.write(f'data_for_computations.shape: {data_for_computations.shape}')
+                    which_x = threedim.parse_selected_coefs(selected_coefs)
+                    comp = threedim.select_coef_computation(data_for_computations, which_x)
+                    computed_result = threedim.select_coef_report(comp)
+                    # Save in session state
+                    st.session_state['results'][key].append(computed_result)
+                    new_tab_label = f"Result {len(st.session_state['results'][key])}"
+                    st.session_state['tabs'][key].append(new_tab_label)
 
-    # ---------------------------
-    # C) Target variable
-    # ---------------------------
-    else:  # "Target variable"
-        # Let user pick from columns that have exactly 2 unique values
-        st.sidebar.write("Select which variable is the target (must be binary).")
-        target_var = threedim.get_target_variable(data)
-        
-        if st.sidebar.button("Go!"):
-            comp = threedim.target_computation(data_for_computations, target_var)
-            
-            # For target variable, we want TWO sub-tabs:
-            #   1) The standard result
-            #   2) The "Model Value" dynamic UI
-            # We'll store them in a single dictionary so we can display them together.
-            
-            # The normal output
-            standard_report = threedim.target_report(comp)  # list of text/DataFrames
-            
-            # We'll create a "model_value" dictionary with everything needed for model_value_tab
-            # For example, model_value_tab expects a dict like {"name": "...", "computed": comp}
-            # so let's store something like that:
-            model_value_info = {
-                "name": f"Target={target_var}",
-                "computed": comp
-            }
-            
-            # We'll store them as a dict with two "sub-tabs"
-            # so we can easily handle them in the main code
-            computed_result = {
-                "mode": "target_variable",      # a little flag to let us know
-                "report": standard_report,      # the normal list
-                "model_value": model_value_info # the dictionary for dynamic UI
-            }
-            
-            st.session_state['results'][key].append(computed_result)
-            new_tab_label = f"Target variable {len(st.session_state['results'][key])}"
-            st.session_state['tabs'][key].append(new_tab_label)
-     
+            # ---------------------------
+            # C) Target variable
+            # ---------------------------
+            else:  # "Target variable"
+                # Let user pick from columns that have exactly 2 unique values
+                st.sidebar.write("Select which variable is the target (must be binary).")
+                target_var = threedim.get_target_variable(data)
+                
+                if st.sidebar.button("Go!"):
+                    comp = threedim.target_computation(data_for_computations, target_var)
+                    
+                    # For target variable, we want TWO sub-tabs:
+                    #   1) The standard result
+                    #   2) The "Model Value" dynamic UI
+                    # We'll store them in a single dictionary so we can display them together.
+                    
+                    # The normal output
+                    standard_report = threedim.target_report(comp)  # list of text/DataFrames
+                    
+                    # We'll create a "model_value" dictionary with everything needed for model_value_tab
+                    # For example, model_value_tab expects a dict like {"name": "...", "computed": comp}
+                    # so let's store something like that:
+                    model_value_info = {
+                        "name": f"Target={target_var}",
+                        "computed": comp
+                    }
+                    
+                    # We'll store them as a dict with two "sub-tabs"
+                    # so we can easily handle them in the main code
+                    computed_result = {
+                        "mode": "target_variable",      # a little flag to let us know
+                        "report": standard_report,      # the normal list
+                        "model_value": model_value_info # the dictionary for dynamic UI
+                    }
+                    
+                    st.session_state['results'][key].append(computed_result)
+                    new_tab_label = f"Target variable {len(st.session_state['results'][key])}"
+                    st.session_state['tabs'][key].append(new_tab_label)
+    except Exception as e:
+        st.error(f"Error processing data for 3D analysis: {str(e)}")
+        st.warning("Please ensure you've selected X, Y, and Z columns in the file uploader options. The current data might be from a different analysis method.")
+        st.info("Upload your data file again and select the appropriate columns for 3D analysis.")
+
 # ----------------------------
 # N-Dimensional Analysis Section
 # ----------------------------
@@ -828,6 +856,64 @@ elif selected_method == 'Ranking' and st.session_state.get('transformed_data') i
                 return None
         
         upper_polarity_idx = parse_upper_polarity(upper_polarity_str) if upper_polarity_str else None
+    
+        # Add Go! button for Exploratory and Confirmatory models
+        if st.sidebar.button("Go!", key=f"ranking_{ranking_model.lower()}_go"):
+            try:
+                # Process satisfaction constraint
+                sat_constraint = None
+                if satisfaction_constraint == "First":
+                    sat_constraint = "first"
+                elif satisfaction_constraint == "Last":
+                    sat_constraint = "last"
+                
+                # Run the appropriate analysis based on selected model
+                if ranking_model == "Exploratory":
+                    results = ranking.exploratory_computation(data, upper_polarity_idx, sat_constraint)
+                    report = ranking.exploratory_report(results)
+                    
+                    # Store the computation results for plotting
+                    comp_data = {
+                        'analysis_type': 'exploratory',
+                        'results': results,
+                        'contingency_table': data
+                    }
+                    st.session_state['comp_results'][key].append(comp_data)
+                    
+                    # Save report in results
+                    st.session_state['results'][key].append(report)
+                    
+                    # Create new tab
+                    new_tab_label = f"Exploratory {len(st.session_state['results'][key])}"
+                    st.session_state['tabs'][key].append(new_tab_label)
+                    
+                    st.success(f"Analysis complete! View results in the '{new_tab_label}' tab.")
+                    
+                elif ranking_model == "Confirmatory":
+                    results = ranking.confirmatory_computation(data, upper_polarity_idx, sat_constraint)
+                    report = ranking.confirmatory_report(results)
+                    
+                    # Store computation results for plotting
+                    comp_data = {
+                        'analysis_type': 'confirmatory',
+                        'results': results,
+                        'contingency_table': data
+                    }
+                    st.session_state['comp_results'][key].append(comp_data)
+                    
+                    # Save report in results
+                    st.session_state['results'][key].append(report)
+                    
+                    # Create new tab
+                    new_tab_label = f"Confirmatory {len(st.session_state['results'][key])}"
+                    st.session_state['tabs'][key].append(new_tab_label)
+                    
+                    st.success(f"Analysis complete! View results in the '{new_tab_label}' tab.")
+                    
+            except Exception as e:
+                st.error(f"Error in {ranking_model} analysis: {str(e)}")
+                import traceback
+                st.sidebar.code(traceback.format_exc())
     
     # For Explanatory Variable, show different inputs
     elif ranking_model == "Explanatory Variable":
