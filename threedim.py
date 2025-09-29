@@ -31,14 +31,15 @@ def transform_to_3d_array(grouped_data):
     max_y = grouped_data['Y'].max() 
     max_z = grouped_data['Z'].max() 
     
-    # Initialize the 3D array with zeros
-    data_array = np.zeros((max_z, max_x, max_y))
-    # data_array = np.zeros((2,7,7))
+    # Initialize the 3D array with zeros (correct shape: X, Y, Z)
+    data_array = np.zeros((max_x, max_y, max_z))
+    
     # Fill the array with the values from the DataFrame
     for _, row in grouped_data.iterrows():
         x, y, z, value = int(row['X'])-1, int(row['Y'])-1, int(row['Z'])-1, row['value']
-        data_array[z, x , y] = value
-    return data_array.transpose(1,2,0)
+        data_array[x, y, z] = value
+    
+    return data_array
 
 import statsmodels.api as sm
 from itertools import product
@@ -449,23 +450,20 @@ def target_computation(data, target):
         explanatory_mu.append(pair_mu)
     
     # Odds matrix
-    odd_matrix = np.exp(target_mu[:, np.newaxis] + explanatory_mu[0][:, np.newaxis] + explanatory_mu[1][np.newaxis, :])
+    # In R: target.mu + outer(explanatory.mu[[1]], explanatory.mu[[2]], "+")
+    # target_mu is a scalar (single value from -diff)
+    # explanatory_mu[0] and explanatory_mu[1] are 1D arrays
+    odd_matrix = np.exp(target_mu + 
+                       np.add.outer(explanatory_mu[0], explanatory_mu[1]))
     propensity_matrix = np.round(odd_matrix / (odd_matrix + 1), 4)
     epsilon = 1e-4
     propensity_matrix[propensity_matrix < epsilon] = epsilon
     propensity_matrix[propensity_matrix > 1 - epsilon] = 1 - epsilon
     
-    freq_matrix = np.zeros((original.shape[explanatory_variables[0]],original.shape[explanatory_variables[0]] ))
-    for i in range(original.shape[explanatory_variables[0]]):
-        # Loop through the indices of the second explanatory variable
-        for j in range(original.shape[explanatory_variables[1]]):
-            # Sum over the target variable axis to compute the frequency matrix value
-            if target == 0:
-                freq_matrix[i, j] = np.sum(original[:, i, j])
-            elif target == 1:
-                freq_matrix[i, j] = np.sum(original[i, :, j])
-            else:
-                freq_matrix[i, j] = np.sum(original[i, j, :])
+    # Frequency matrix: sum over the target dimension
+    # In R: apply(original, explanatory.variables, sum)
+    # This sums over all dimensions EXCEPT the explanatory variables
+    freq_matrix = np.sum(original, axis=target)
 
     return {
         'original': original,
@@ -482,7 +480,6 @@ def target_computation(data, target):
     }
 
 def target_report(computed):
-    # print(computed)
     report1 = ''
     report1 += "# 3-Dimensional Model Result\n\n"
     report1 += ' ## Results for the selected model: \n\n'
@@ -542,18 +539,19 @@ def target_report(computed):
         report3 += '\n'
     
     report3 += '### Odds Matrix'
+    # Index corresponds to first explanatory variable (rows), columns to second (cols)
     odds_df = pd.DataFrame(computed['odd_matrix'],
-                           index=[f'{variable_names[computed["explanatory_variables"][0]]}={i+1}' for i in range(len(computed['odd_matrix'][0]))],
-                           columns=[f'{variable_names[computed["explanatory_variables"][1]]}={i+1}' for i in range(len(computed['odd_matrix']))])
+                           index=[f'{variable_names[computed["explanatory_variables"][0]]}={i+1}' for i in range(computed['odd_matrix'].shape[0])],
+                           columns=[f'{variable_names[computed["explanatory_variables"][1]]}={i+1}' for i in range(computed['odd_matrix'].shape[1])])
     report4 = "### Propensity Matrix \n\n"
     propensity_df = pd.DataFrame(computed['propensity_matrix'],
-                           index=[f'{variable_names[computed["explanatory_variables"][0]]}={i+1}' for i in range(len(computed['propensity_matrix'][0]))],
-                           columns=[f'{variable_names[computed["explanatory_variables"][1]]}={i+1}' for i in range(len(computed['propensity_matrix']))])
+                           index=[f'{variable_names[computed["explanatory_variables"][0]]}={i+1}' for i in range(computed['propensity_matrix'].shape[0])],
+                           columns=[f'{variable_names[computed["explanatory_variables"][1]]}={i+1}' for i in range(computed['propensity_matrix'].shape[1])])
     
     report5 = '### Frequency Matrix \n\n'
     frequency_df = pd.DataFrame(computed['freq_matrix'],
-                           index=[f'{variable_names[computed["explanatory_variables"][0]]}={i+1}' for i in range(len(computed['freq_matrix'][0]))],
-                           columns=[f'{variable_names[computed["explanatory_variables"][1]]}={i+1}' for i in range(len(computed['freq_matrix']))])
+                           index=[f'{variable_names[computed["explanatory_variables"][0]]}={i+1}' for i in range(computed['freq_matrix'].shape[0])],
+                           columns=[f'{variable_names[computed["explanatory_variables"][1]]}={i+1}' for i in range(computed['freq_matrix'].shape[1])])
     
     report6 = '### Model Diagnostics\n\n'
     if computed['model']['model_is_fit']:

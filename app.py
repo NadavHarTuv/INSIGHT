@@ -428,6 +428,8 @@ elif selected_method == '3-Dimensional' and st.session_state['transformed_data']
                     st.session_state['tabs'][key].append(new_tab_label)
     except Exception as e:
         st.error(f"Error processing data for 3D analysis: {str(e)}")
+        import traceback
+        st.code(traceback.format_exc())
         st.warning("Please ensure you've selected X, Y, and Z columns in the file uploader options. The current data might be from a different analysis method.")
         st.info("Upload your data file again and select the appropriate columns for 3D analysis.")
 
