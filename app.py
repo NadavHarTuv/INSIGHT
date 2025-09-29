@@ -28,9 +28,12 @@ def display_result_items(result_items):
             if isinstance(item, pd.DataFrame):
                 st.dataframe(utils.clean_df(item))
             elif isinstance(item, str):
-                # Break long strings at newlines for better readability
-                if '\n' in item:
-                    # For debug logs with newlines, use code block formatting
+                # Check if it's markdown content (contains markdown headers or formatting)
+                if item.strip().startswith('#') or '**' in item or '*' in item:
+                    # Use markdown for formatted text
+                    st.markdown(item)
+                elif '\n' in item and not (item.strip().startswith('#') or '**' in item):
+                    # For debug logs with newlines but no markdown, use code block formatting
                     st.code(item)
                 else:
                     st.markdown(item)
