@@ -152,13 +152,22 @@ st.session_state['last_method'] = selected_method
 # Sidebar: File uploader
 uploaded_file = st.sidebar.file_uploader("Upload data file", type='csv', key='file_uploader')
 
-# Load/transform data only if a file is uploaded
+# Load/transform data only if a file is uploaded and we don't already have data
 if uploaded_file is not None:
-    new_raw_data, new_transformed_data = utils.load_data(uploaded_file, selected_method)
-    if new_raw_data is not None and new_transformed_data is not None:
-        # Store the transformed data (contingency table) in session state
-        st.session_state['raw_data'] = new_raw_data
-        st.session_state['transformed_data']=new_transformed_data
+    # Only reload data if we don't have it yet, or if the file has changed
+    should_reload = (
+        st.session_state.get('raw_data') is None or 
+        st.session_state.get('transformed_data') is None or
+        st.session_state.get('uploaded_file_name') != uploaded_file.name
+    )
+    
+    if should_reload:
+        new_raw_data, new_transformed_data = utils.load_data(uploaded_file, selected_method)
+        if new_raw_data is not None and new_transformed_data is not None:
+            # Store the transformed data (contingency table) in session state
+            st.session_state['raw_data'] = new_raw_data
+            st.session_state['transformed_data'] = new_transformed_data
+            st.session_state['uploaded_file_name'] = uploaded_file.name
         # Set up storage for results and tabs specific to this method.
 key = selected_method.lower().replace(" ", "_")
 if key not in st.session_state['results']:
@@ -172,6 +181,72 @@ if selected_method == 'Independence' and st.session_state.get('transformed_data'
     data = st.session_state['transformed_data']
     # Store the contingency table for future reference
     st.session_state['indep_contingency_table'] = data
+    
+    # ------------------------
+    # Collapse Data Option
+    # ------------------------
+    st.sidebar.subheader("Data Collapse Options")
+    
+    # Row groups input
+    row_groups_str = st.sidebar.text_input(
+        "Row groups to collapse (optional)", 
+        value="",
+        help="Enter row groups to collapse (e.g., '1-3;4,5' will collapse rows 1-3 into one row and rows 4,5 into another)",
+        key="collapse_row_groups"
+    )
+    
+    # Column groups input  
+    col_groups_str = st.sidebar.text_input(
+        "Column groups to collapse (optional)", 
+        value="",
+        help="Enter column groups to collapse (e.g., '1,3;4-5' will collapse columns 1,3 into one column and columns 4-5 into another)",
+        key="collapse_col_groups"
+    )
+    
+    # Collapse button
+    if st.sidebar.button("Collapse Data", key="collapse_data_btn"):
+        row_groups = None
+        col_groups = None
+        
+        # Parse row groups if provided
+        if row_groups_str.strip():
+            try:
+                row_groups = utils.parse_text_groups(row_groups_str)
+                if row_groups is None:
+                    st.sidebar.error("Invalid row groups format. Please check the format.")
+            except Exception as e:
+                st.sidebar.error(f"Error parsing row groups: {str(e)}")
+                row_groups = None
+        
+        # Parse column groups if provided
+        if col_groups_str.strip():
+            try:
+                col_groups = utils.parse_text_groups(col_groups_str)
+                if col_groups is None:
+                    st.sidebar.error("Invalid column groups format. Please check the format.")
+            except Exception as e:
+                st.sidebar.error(f"Error parsing column groups: {str(e)}")
+                col_groups = None
+        
+        # Perform collapse if at least one group is specified
+        if row_groups is not None or col_groups is not None:
+            try:
+                collapsed_data = utils.collapse_data(data, row_groups, col_groups, as_data_metrix=True)
+                
+                # Update the transformed data in session state 
+                st.session_state['transformed_data'] = collapsed_data
+                st.session_state['indep_contingency_table'] = collapsed_data
+                
+                st.sidebar.success("Data collapsed successfully!")
+            except Exception as e:
+                st.sidebar.error(f"Error collapsing data: {str(e)}")
+                import traceback
+                st.sidebar.code(traceback.format_exc())
+        else:
+            st.sidebar.warning("Please specify at least one group (row or column) to collapse.")
+    
+    
+    st.sidebar.markdown("---")  # Add separator
     
     selected_model = st.sidebar.selectbox("Select Model", model_names['Independence'])
     
@@ -197,14 +272,9 @@ if selected_method == 'Independence' and st.session_state.get('transformed_data'
         orientation_ztest = st.sidebar.radio("Select orientation", ["Row", "Column"])
         # This helper will read the pair from a text_input and return either the
         # 0-based indices or None if invalid.
-        # Ensure we have the contingency table in session state
-        if 'indep_contingency_table' in st.session_state:
-            pair = independence.ztest_read_pair(
-                st.session_state['indep_contingency_table'],
-                orientation_ztest
-            )
-        else:
-            pair = independence.ztest_read_pair(data, orientation_ztest)
+        # Use the current transformed data (which may have been collapsed)
+        current_data = st.session_state['transformed_data']
+        pair = independence.ztest_read_pair(current_data, orientation_ztest)
 
     # -----------------------------------
     # 3) Chi Square Specific Inputs
@@ -226,29 +296,32 @@ if selected_method == 'Independence' and st.session_state.get('transformed_data'
     
     
     if st.sidebar.button("Go!"):
+        # Always use the current session state data (which may have been collapsed)
+        current_data = st.session_state['transformed_data']
+        
         if selected_model == 'Independence Model':
-            result = independence.independence_model_report(data)
+            result = independence.independence_model_report(current_data)
             
         elif selected_model == 'ANOAS Model':
             if groups_anoas is None:
                 result = "Invalid or missing group string. Cannot compute ANOAS."
             else:
-                result = independence.anoas_model_report(data, groups_anoas, orientation_anoas)
+                result = independence.anoas_model_report(current_data, groups_anoas, orientation_anoas)
                 
         elif selected_model == "Predictors' Proportion":
-            result = independence.predictors_proportion_report(data)
+            result = independence.predictors_proportion_report(current_data)
             
         elif selected_model == "Log-Odds Z-Test":
             if pair is None:
                 result = "Invalid pair of rows/columns. Cannot compute Log-Odds Z-Test."
             else:  
-                result = independence.ztest_report(contingency_table=data, pair=pair,orientation=orientation_ztest)
+                result = independence.ztest_report(contingency_table=current_data, pair=pair,orientation=orientation_ztest)
             
         elif selected_model == "Collapse Chi-Sq Test":
             if row_groups is None or col_groups is None:
                 result = "Invalid group string(s) provided. Cannot compute Collapse Chi-Sq Test."
             else:
-                result = independence.chisq_test_report(data, row_groups, col_groups)
+                result = independence.chisq_test_report(current_data, row_groups, col_groups)
             
         else:
             result = "Selected model not implemented."
