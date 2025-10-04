@@ -174,16 +174,15 @@ def loglin_computation(data, which_x, p_value_threshold=0.05):
         # l_sq_stat = computed['lrt']
         l_sq_stat = 2 * np.sum(observed * np.log(observed / expected + 1e-10))
         pearson_chi2 = computed['pearson_chi2']
-        # d_o_f = computed['df']
-        # st.write(observed)
-        # st.write(f'observed.shape: {observed.shape}')
-        d_o_f = np.prod([(dim - 1) for dim in observed.shape])
+        d_o_f = computed['df']
+        lambda_coef = compute_lambda_coeffs(expected, data, which_x)
+        # Adjust intercept to match R implementation
+        lambda_coef['Intercept'] = lambda_coef['Intercept'] - np.log(np.sum(data))
     p_value = np.exp(np.log(chi2.sf(l_sq_stat, d_o_f) + 1e-10))
     log_p_value = np.log(p_value + 1e-10)
     model_is_fit = p_value > p_value_threshold
     residual_matrix = (observed - expected) / np.sqrt(expected + 1e-10)
     num_signif_residual = np.sum(np.abs(residual_matrix) > 1.64)
-    lambda_coef = compute_lambda_coeffs(expected, data, which_x)
     return {
         'observed': observed,
         'expected': expected,
@@ -802,6 +801,13 @@ def compute_and_display_results(data, explanatory_variables, propensity_matrix, 
 
 def model_value_tab(threedim_result):
     
+    # Initialize session state for this specific result
+    result_name = threedim_result["name"]
+    if f'plots_{result_name}' not in st.session_state:
+        st.session_state[f'plots_{result_name}'] = None
+    if f'compute_results_{result_name}' not in st.session_state:
+        st.session_state[f'compute_results_{result_name}'] = None
+    
     st.markdown("""
     <style>
     .wrapper {
@@ -834,23 +840,23 @@ def model_value_tab(threedim_result):
             st.write("O = 1")
 
         with col2:
-            reward_o1_p1 = st.text_input("Reward O1P1", value="1", key=f'o1p1 {threedim_result["name"]}')
+            reward_o1_p1 = st.text_input("Reward O1P1", value="1", key=f'o1p1 {result_name}')
 
         with col3:
-            reward_o1_p2 = st.text_input("Reward O1P2", value="-1", key=f'o1p2 {threedim_result["name"]}')
+            reward_o1_p2 = st.text_input("Reward O1P2", value="-1", key=f'o1p2 {result_name}')
 
         col1, col2, col3 = st.columns([1, 1, 1])
         with col1:
             st.write("O = 2")
 
         with col2:
-            reward_o2_p1 = st.text_input("Reward O2P1", value="-1", key=f'o2p1 {threedim_result["name"]}')
+            reward_o2_p1 = st.text_input("Reward O2P1", value="-1", key=f'o2p1 {result_name}')
 
         with col3:
-            reward_o2_p2 = st.text_input("Reward O2P2", value="1", key=f'o2p2 {threedim_result["name"]}')
+            reward_o2_p2 = st.text_input("Reward O2P2", value="1", key=f'o2p2 {result_name}')
             
 
-        if st.button("Plot!", key=f"Plot! {threedim_result['name']}"):
+        if st.button("Plot!", key=f"Plot! {result_name}"):
             computed = threedim_result['computed']
             model_value_plot = compute_and_plot_model_values(
                 data = computed['data'],
@@ -861,10 +867,6 @@ def model_value_tab(threedim_result):
                 fp_reward=reward_o2_p1,
                 tn_reward=reward_o2_p2
             )
-            if model_value_plot:
-                st.plotly_chart(model_value_plot, use_container_width=True)
-            else:
-                pass
             
             model_accuracy_plot = compute_and_plot_model_accuracies(
                 data = computed['data'],
@@ -875,17 +877,28 @@ def model_value_tab(threedim_result):
                 fp_reward=reward_o2_p1,
                 tn_reward=reward_o2_p2
             )
-            if model_accuracy_plot:
-                st.plotly_chart(model_accuracy_plot, use_container_width=True)
-            else:
-                pass
+            
+            # Store plots in session state
+            st.session_state[f'plots_{result_name}'] = {
+                'model_value_plot': model_value_plot,
+                'model_accuracy_plot': model_accuracy_plot
+            }
+        
+        # Display plots if they exist in session state
+        if st.session_state[f'plots_{result_name}'] is not None:
+            plots = st.session_state[f'plots_{result_name}']
+            if plots['model_value_plot']:
+                st.plotly_chart(plots['model_value_plot'], use_container_width=True)
+            if plots['model_accuracy_plot']:
+                st.plotly_chart(plots['model_accuracy_plot'], use_container_width=True)
+                
         st.markdown('</div>', unsafe_allow_html=True)
 
         # Sensitivity and Specificity Section
         st.markdown('<div class="wrapper">', unsafe_allow_html=True)
         st.write("Sensitivity and Specificity")
-        propensity_threshold = st.text_input("Propensity Threshold", key = f'propensity threshold {threedim_result["name"]}')
-        if st.button("Compute!",key = f"Compute! {threedim_result['name']}"):
+        propensity_threshold = st.text_input("Propensity Threshold", key = f'propensity threshold {result_name}')
+        if st.button("Compute!",key = f"Compute! {result_name}"):
             computed = threedim_result['computed']
             results = compute_and_display_results(
                 data = computed['data'],
@@ -896,7 +909,12 @@ def model_value_tab(threedim_result):
                 fp_reward=reward_o2_p1,
                 tn_reward=reward_o2_p2,
                 threshold=propensity_threshold)
-            for result in results:
+            # Store compute results in session state
+            st.session_state[f'compute_results_{result_name}'] = results
+        
+        # Display compute results if they exist in session state
+        if st.session_state[f'compute_results_{result_name}'] is not None:
+            for result in st.session_state[f'compute_results_{result_name}']:
                 if isinstance(result, pd.DataFrame):
                     st.dataframe(result)
                 else:
