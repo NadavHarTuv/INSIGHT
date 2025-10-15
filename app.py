@@ -688,17 +688,15 @@ elif selected_method == 'Loyalty' and st.session_state.get('transformed_data') i
                     expl_indices = utils.parse_indices_string(expl_vars_str)
                     # Convert 1-based indices to 0-based
                     expl_indices = [i - 1 for i in expl_indices]
-                    # Map these indices to column names from new_df.
-                    explanatory_vars_list = [
-                        new_df.columns[i] for i in expl_indices if i < len(new_df.columns)
-                    ]
-                    if sort_explanatory and explanatory_vars_list:
-                        # threedim.sort_explanatory_variables expects: (data, target_col, [explanatory_cols])
-                        sorted_order = threedim.sort_explanatory_variables(new_df, st.session_state.get('survival_col'), [explanatory_vars_list])
-                        # Convert sorted indices to names (assuming new_df columns correspond)
-                        sorted_expl_vars = [new_df.columns[i]+1 for i in sorted_order]
+                    if expl_indices:
+                        # The target is the last column ('new_column') which is at index len(new_df.columns) - 1
+                        target_col_idx = len(new_df.columns) - 1
+                        # threedim.sort_explanatory_variables expects integer indices
+                        sorted_order = threedim.sort_explanatory_variables(new_df, target_col_idx, expl_indices)
+                        # Convert sorted indices to 1-based for display
+                        sorted_expl_vars = [i + 1 for i in sorted_order]
                         sorted_order_str = ", ".join(map(str, sorted_expl_vars))
-                        st.markdown(f"**Sorted explanatory variables:** {sorted_order_str}")
+                        st.markdown(f"**Sorted explanatory variables (by column index):** {sorted_order_str}")
                 
                 st.session_state['results'][key].append(new_df)
                 new_tab_label = f"Explanatory Result {len(st.session_state['results'][key])}"

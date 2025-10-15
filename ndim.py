@@ -38,21 +38,33 @@ def read_input(ndim_data):
 
    
 def contingency_array_multivariate(df):
-     # Get all unique values for each column to ensure all levels are included
-    unique_levels = [df[col].unique() for col in df.columns]
+    """
+    Create a contingency array from a DataFrame.
+    Optimized version using numpy for better performance.
+    """
+    # Get unique values for each column (sorted for consistency)
+    unique_levels = [sorted(df[col].unique()) for col in df.columns]
+    shape = [len(levels) for levels in unique_levels]
     
-    # Generate all combinations of levels
-    full_index = pd.MultiIndex.from_product(unique_levels, names=df.columns)
+    # Initialize contingency array
+    contingency_array = np.zeros(shape, dtype=np.float64)
     
-    # Create a contingency table with all levels included
-    grouped = df.groupby(list(df.columns)).size().reindex(full_index, fill_value=0).reset_index(name='count')
+    # Convert dataframe to numpy array for faster iteration
+    data_array = df.values
     
-    # Create a contingency array
-    contingency_array = np.zeros([len(levels) for levels in unique_levels])
+    # Create mapping from values to indices for each column
+    value_to_idx = []
+    for col_idx, levels in enumerate(unique_levels):
+        mapping = {val: idx for idx, val in enumerate(levels)}
+        value_to_idx.append(mapping)
     
-    for idx, row in grouped.iterrows():
-        indices = tuple(row[:-1].astype(int) - 1)  # Subtract 1 for 0-based indexing
-        contingency_array[indices] = row['count']
+    # Fill contingency array (vectorized where possible)
+    for row in data_array:
+        try:
+            indices = tuple(value_to_idx[i][int(row[i])] for i in range(len(row)))
+            contingency_array[indices] += 1
+        except (KeyError, IndexError):
+            continue
     
     return contingency_array
     
@@ -84,14 +96,12 @@ def two_way_computation(data, predictor_variable, target_variable):
     
     contingency_array = contingency_array_multivariate(df)
    
-    # Define the covariates to fit
+    # Define the covariates to fit (two-way interactions only)
+    # IPF preserves the highest-order margins; lower-order margins are implied
     covariate_to_fit = []
     for i in range(p):
-        covariate_to_fit.append([i])
-        for j in range(p):
-            if i < j:
-                covariate_to_fit.append([i, j])
-
+        for j in range(i+1, p):
+            covariate_to_fit.append([i, j])
 
     # Fit the log-linear model using loglin
     model = threedim.loglin_computation(contingency_array, covariate_to_fit)
@@ -143,7 +153,7 @@ import pandas as pd
 from scipy.stats import chi2
 from itertools import combinations, product
 
-def select_model_computation(data, predictor_variable, target_variable, which_x, p_value_threshold=0.05):
+def select_model_computation(data, predictor_variable, target_variable, which_x, p_value_threshold=0.05, contingency_array=None):
     df = data.copy()
     df.columns = np.arange(data.shape[1])
     predictor_variable = sorted(predictor_variable)
@@ -154,8 +164,9 @@ def select_model_computation(data, predictor_variable, target_variable, which_x,
 
     p = df.shape[1]
 
-    # Create contingency array
-    contingency_array = contingency_array_multivariate(df)
+    # Create contingency array (or use cached version)
+    if contingency_array is None:
+        contingency_array = contingency_array_multivariate(df)
 
     
     model = threedim.loglin_computation(contingency_array, which_x)
@@ -169,16 +180,20 @@ def select_model_computation(data, predictor_variable, target_variable, which_x,
     lambda_coef_names = lambda_coef.keys()
     # print(f'lambda_coef: {lambda_coef}')
 
-       # Compute the mu's
+    # Compute the mu's
     mu = {}
     for key in lambda_coef_names:
         if key == f'dim{target_idx}':
             # For main effect, take the difference along the target dimension
-            mu[key] = -np.diff(lambda_coef[key])
+            if lambda_coef[key] is not None and len(lambda_coef[key]) > 0:
+                mu[key] = -np.diff(lambda_coef[key])
+            else:
+                # If lambda_coef is missing or empty, skip
+                continue
         elif '.' in key:
             # For interaction terms
             indices = [int(x[-1]) for x in key.split('.')]
-            if target_idx in indices:
+            if target_idx in indices and lambda_coef[key] is not None:
                 dim_target = indices.index(target_idx)
 
                 # Apply diff along the target dimension
@@ -209,35 +224,45 @@ def select_model_computation(data, predictor_variable, target_variable, which_x,
     # Compute the propensities
     explanatory_mu = {k: v for k, v in mu.items() if k != f'dim{target_idx}'}
 
+    # Check if target mu exists
+    if f'dim{target_idx}' not in mu:
+        # If target mu is missing, propensity cannot be computed
+        sequences = [list(range(len(df.iloc[:,i].unique()))) for i in range(p-1)]
+        cases = np.array(list(product(*sequences)))
+        propensity_array = np.full((len(cases), 1), np.nan)
+        odd_array = np.full((len(cases), 1), np.nan)
+    else:
+        sequences = [list(range(len(df.iloc[:,i].unique()))) for i in range(p-1)]
+        cases = np.array(list(product(*sequences)))
 
-    sequences = [list(range(len(df.iloc[:,i].unique()))) for i in range(p-1)]
-    cases = np.array(list(product(*sequences)))
+        sum_mu_array = []
+        for case in cases:
+            try:
+                odd = mu[f'dim{target_idx}'].copy()
+                for tmp_mu_key in explanatory_mu:
 
-
-    sum_mu_array = []
-    for case in cases:
-        odd = mu[f'dim{target_idx}']
-        for tmp_mu_key in explanatory_mu:
-
-            # Extract indices from tmp_mu_key
-            indices = [int(x[-1]) for x in tmp_mu_key.split('.')]
-            indices = indices[:-1]  # Remove the last index (as in the R code)
-            
-            # Convert the case indices into a tuple of indices
-            idx_tuple = tuple(case[np.array(indices)])
-            
-            # Use the tuple to index into the multi-dimensional array
-            tmp_odd = explanatory_mu[tmp_mu_key][idx_tuple]
-            
-            # If you need to extract a single element in the case of 1D
-            if isinstance(tmp_odd, np.ndarray) and tmp_odd.size == 1:
-                tmp_odd = tmp_odd.item()  # Convert to scalar if necessary
-            
-            odd += tmp_odd
-        sum_mu_array.append(odd[0])
-    sum_mu_array = np.array(sum_mu_array)
-    odd_array = np.exp(sum_mu_array)
-    propensity_array = odd_array / (odd_array + 1)
+                    # Extract indices from tmp_mu_key
+                    indices = [int(x[-1]) for x in tmp_mu_key.split('.')]
+                    indices = indices[:-1]  # Remove the last index (as in the R code)
+                    
+                    # Convert the case indices into a tuple of indices
+                    idx_tuple = tuple(case[np.array(indices)])
+                    
+                    # Use the tuple to index into the multi-dimensional array
+                    tmp_odd = explanatory_mu[tmp_mu_key][idx_tuple]
+                    
+                    # If you need to extract a single element in the case of 1D
+                    if isinstance(tmp_odd, np.ndarray) and tmp_odd.size == 1:
+                        tmp_odd = tmp_odd.item()  # Convert to scalar if necessary
+                    
+                    odd += tmp_odd
+                sum_mu_array.append(odd[0] if isinstance(odd, np.ndarray) else odd)
+            except (KeyError, IndexError, TypeError) as e:
+                sum_mu_array.append(np.nan)
+        
+        sum_mu_array = np.array(sum_mu_array)
+        odd_array = np.exp(sum_mu_array)
+        propensity_array = odd_array / (odd_array + 1)
 
     odd_array = np.round(odd_array, 4)
     propensity_array = np.round(propensity_array, 4)
@@ -416,6 +441,9 @@ def coefficients_names(data_col_names, coefficients):
 
 
 def target_variable_computation(data, predictor_variables, target_variable, client_constraints, level=2):
+    # Flatten if nested
+    if isinstance(predictor_variables, list) and len(predictor_variables) > 0 and isinstance(predictor_variables[0], list):
+        predictor_variables = predictor_variables[0]
     predictor_variables = sorted(predictor_variables)
     all_variables = predictor_variables + [target_variable]
     target_idx = all_variables.index(target_variable)
@@ -451,24 +479,25 @@ def target_variable_computation(data, predictor_variables, target_variable, clie
 
     p = len(model_predictor_variables) + 1
 
+    # Pre-compute contingency array once for efficiency
+    df_for_contingency = original_data.copy()
+    df_for_contingency.columns = np.arange(original_data.shape[1])
+    all_vars_for_model = sorted(model_predictor_variables + [target_variable])
+    df_selected = df_for_contingency[all_vars_for_model]
+    cached_contingency_array = contingency_array_multivariate(df_selected)
+
     model_list = []
     levels = []
     
     
 
     for k in range(p-1, 1, -1):
-        covariates_to_fit = []
-    # Generate all combinations of k elements from the predictor variables
-        combs = list(combinations(range(p), k))
-        for comb in combs:
-            for r in range(1, len(comb)+1):
-                subterms = [list(subterm) for subterm in combinations(comb,r)]
-                covariates_to_fit.extend(subterms)
-                # covariates_to_fit = list(set(covariates_to_fit))
-            covariates_to_fit.append(list(comb))
-        covariates_to_fit = sorted([list(x) for x in set(tuple(x) for x in covariates_to_fit)], key=lambda x: (len(x), x[0], x[-1]))
-        # covariates_to_fit = np.unique(covariates_to_fit)
-        model = select_model_computation(data=original_data, predictor_variable=model_predictor_variables, target_variable=target_variable, which_x=covariates_to_fit)
+        # Generate all k-combinations of p elements (matching R's combn)
+        # R: combinations = combn(seq(p), k)
+        # This gives us all k-way interaction terms directly
+        covariates_to_fit = [list(comb) for comb in combinations(range(p), k)]
+        
+        model = select_model_computation(data=original_data, predictor_variable=model_predictor_variables, target_variable=target_variable, which_x=covariates_to_fit, contingency_array=cached_contingency_array)
         if model['p_value'] > 0.05 and np.all(~np.isnan(model['propensity'])):
             model_list.append(model)
             levels.append(k)
@@ -488,10 +517,10 @@ def target_variable_computation(data, predictor_variables, target_variable, clie
 #                     levels.append(k)
 
     indep_covariates_to_fit = [[i, p-1] for i in range(p-1)]
-    indep_covariates_to_fit.extend([i] for i in range(p))
+    indep_covariates_to_fit.extend([[i] for i in range(p)])
 
 
-    indep_model = select_model_computation(data=original_data, predictor_variable=model_predictor_variables, target_variable=target_variable, which_x=indep_covariates_to_fit)
+    indep_model = select_model_computation(data=original_data, predictor_variable=model_predictor_variables, target_variable=target_variable, which_x=indep_covariates_to_fit, contingency_array=cached_contingency_array)
 
     if indep_model['p_value'] > 0.05:
         model_list.append(indep_model)
@@ -610,7 +639,12 @@ def target_variable_report(computed):
         return [s]
 
 
+_detailed_tab_counter = 0
+
 def detailed_models_tab(ndim_results):
+    global _detailed_tab_counter
+    _detailed_tab_counter += 1
+    
     st.write("Detailed Models: \n")
     # st.write(ndim_results)
     computed = ndim_results['computed']
@@ -619,11 +653,14 @@ def detailed_models_tab(ndim_results):
     # st.write(f'computed: \n {computed}')
     else:
         number_of_models = len(computed['model'])
+        # Use counter to create truly unique keys
+        key_base = f'detailed_model_{_detailed_tab_counter}'
+        
         model_choice = st.selectbox('Select model to expand',
                                     options=np.arange(1,number_of_models+1),
-                                    key = f'model_choice {ndim_results["name"]}')
+                                    key = f'{key_base}_selectbox')
         selected_model = computed['model'][model_choice-1]
-        if st.button('Show!', key=f'Show! {ndim_results["name"]}'):
+        if st.button('Show!', key=f'{key_base}_show_button'):
             report = select_model_report(selected_model)
             for r in report:
                 st.write(r)
@@ -857,7 +894,11 @@ def compute_and_display_results(data, propensity_matrix, tp_reward, tn_reward, f
     return results
 
 
+_model_value_tab_counter = 0
+
 def model_value_tab(ndim_results):
+    global _model_value_tab_counter
+    _model_value_tab_counter += 1
     
     computed = ndim_results['computed']
     if computed is None:
@@ -866,7 +907,7 @@ def model_value_tab(ndim_results):
         number_of_models = len(computed['model'])
         model_choice = st.selectbox('Select model',
                                     options=np.arange(1, number_of_models+1),
-                                    key=f'model choice {ndim_results["name"]}')
+                                    key=f'model_value_choice_{_model_value_tab_counter}')
         selected_model = computed['model'][model_choice-1]
         
         st.markdown("""

@@ -77,49 +77,154 @@ def array_to_dataframe(a):
     return df
 
 
+def loglin_ipf(data, margin_indices, max_iter=50, tol=1e-8):
+    """
+    Fast Iterative Proportional Fitting (IPF) algorithm for log-linear models.
+    This matches R's loglin implementation which is much faster than GLM.
+    
+    Parameters:
+    - data: numpy array of observed counts
+    - margin_indices: list of lists, each containing dimension indices to preserve
+    - max_iter: maximum iterations
+    - tol: convergence tolerance
+    
+    Returns:
+    - expected: fitted values
+    - df: degrees of freedom
+    """
+    import numpy as np
+    
+    # Ensure data is float to avoid casting issues
+    data = data.astype(np.float64)
+    
+    # Handle edge case: if data sum is zero or very small
+    if np.sum(data) < 1e-10:
+        return np.zeros_like(data, dtype=np.float64), 0
+    
+    # Initialize fitted values with small constant to avoid zeros
+    fit = np.ones(data.shape, dtype=np.float64) * (np.mean(data) + 1e-10)
+    
+    # Iterative proportional fitting
+    for iteration in range(max_iter):
+        old_fit = fit.copy()
+        
+        for margin in margin_indices:
+            # Sum over dimensions NOT in the margin
+            dims_to_sum = tuple(set(range(data.ndim)) - set(margin))
+            
+            if dims_to_sum:
+                observed_margin = np.sum(data, axis=dims_to_sum, keepdims=True)
+                fitted_margin = np.sum(fit, axis=dims_to_sum, keepdims=True)
+                
+                # Avoid division by zero - use small epsilon
+                eps = 1e-10
+                ratio = np.divide(observed_margin, fitted_margin + eps, 
+                                 out=np.ones_like(observed_margin, dtype=np.float64), 
+                                 where=fitted_margin > eps)
+                
+                # Broadcast the ratio back to the full array
+                fit = fit * ratio
+            else:
+                # If margin is all dimensions, just set total
+                total_data = np.sum(data)
+                total_fit = np.sum(fit)
+                if total_fit > 1e-10:
+                    fit = fit * (total_data / total_fit)
+        
+        # Check convergence
+        if np.max(np.abs(fit - old_fit)) < tol:
+            break
+    
+    # Calculate degrees of freedom by counting parameters
+    # df = n_cells - n_parameters
+    # For log-linear models: n_parameters = 1 (intercept) + sum of interaction parameters
+    
+    n_cells = np.prod(data.shape)
+    ndim = data.ndim
+    
+    # Remove duplicate margins
+    unique_margins = []
+    seen = set()
+    for margin in margin_indices:
+        margin_tuple = tuple(sorted(margin))
+        if margin_tuple not in seen:
+            seen.add(margin_tuple)
+            unique_margins.append(list(margin))
+    
+    # Count parameters in the hierarchical log-linear model
+    # 1. Start with intercept
+    n_params = 1
+    
+    # 2. Find all dimensions that appear in any margin
+    all_dims = set()
+    for margin in unique_margins:
+        all_dims.update(margin)
+    
+    # 3. Add main effect parameters for each dimension
+    for dim in all_dims:
+        n_params += (data.shape[dim] - 1)
+    
+    # 4. Add interaction parameters
+    # Count unique interactions at each level
+    for margin in unique_margins:
+        if len(margin) > 1:
+            # Interaction parameters = product of (dim_size - 1) for each dim in interaction
+            interaction_params = np.prod([data.shape[d] - 1 for d in margin])
+            n_params += interaction_params
+    
+    # Calculate df
+    df = n_cells - n_params
+    
+    # Ensure df is not negative  
+    df = max(0, df)
+    
+    return fit, int(df)
+
 def loglin(data, which_x):
     import numpy as np
-    import statsmodels.api as sm
     from itertools import product
-    # Construct a DataFrame of indices.
-    ndim = data.ndim
-    indices = list(product(*[range(dim) for dim in data.shape]))
-    df_indices = pd.DataFrame(indices, columns=[f'dim{i}' for i in range(ndim)])
-    df_indices['count'] = data.flatten()
     
-    # Build formula terms based on which_x.
-    terms = []
+    # Convert which_x format to margin indices for IPF
+    # which_x contains lists like [0,1], [0,2], etc representing interactions
+    margin_indices = []
     for term in which_x:
         if isinstance(term, int):
-            terms.append(f'C(dim{term})')
+            margin_indices.append([term])
         elif isinstance(term, list):
-            # For interaction terms.
-            interaction = " * ".join([f'C(dim{d})' for d in term])
-            terms.append(interaction)
-    terms = list(dict.fromkeys(terms))
-    formula = 'count ~ ' + ' + '.join(terms)
-    model = sm.GLM.from_formula(formula, data=df_indices, family=sm.families.Poisson()).fit()
-    expected = model.mu.reshape(data.shape)
-    lrt = 2 * (model.llf - model.llnull)
-    observed = df_indices['count'].values
-    pearson_chi2 = np.sum((observed - model.mu) ** 2 / model.mu)
-    df_resid = model.df_resid
-    # lambda_coeffs = dict(model.params)
+            margin_indices.append(term)
+    
+    # Use fast IPF algorithm
+    expected, df_resid = loglin_ipf(data, margin_indices)
+    
+    # Calculate statistics using IPF expected values
+    observed = data.flatten()
+    expected_flat = expected.flatten()
+    
+    # Avoid log(0) and division by zero
+    eps = 1e-10
+    
+    # LRT calculation
+    mask = (observed > eps) & (expected_flat > eps)
+    lrt = 2 * np.sum(observed[mask] * np.log(observed[mask] / expected_flat[mask]))
+    
+    # Pearson chi-squared with protection against division by zero
+    safe_expected = np.where(expected_flat > eps, expected_flat, eps)
+    pearson_chi2 = np.sum((observed - expected_flat) ** 2 / safe_expected)
+    
     return {
         'expected': expected,
         'lrt': lrt,
         'df': df_resid,
-        'params': model.params,
+        'params': None,  # IPF doesn't produce params in same format
         'pearson_chi2': pearson_chi2,
-        # 'lambda_coef': lambda_coeffs
     }
 
 def compute_lambda_coeffs(expected, data, which_x):
-
     """
     Compute lambda coefficients from the fitted values.
+    Works for both 3D and N-dimensional cases.
     """
-    log_fit = np.log(expected)
+    log_fit = np.log(expected + 1e-10)  # Add small constant to avoid log(0)
     n_dims = len(data.shape)
     varnames = [f'dim{i}' for i in range(n_dims)]
     lambda_coeffs = {}
@@ -130,16 +235,24 @@ def compute_lambda_coeffs(expected, data, which_x):
 
     # Subtract the intercept
     log_fit -= intercept
-    # print("Which_X: ", which_x)
-    # Compute main effects
-    for i in range(len(which_x)):
-        if isinstance(which_x[i], list) and len(which_x[i]) == 1:
-            var = which_x[i][0]
-            levels = data.shape[var]
-            lambda_coeffs[varnames[var]] = np.zeros(levels)
-            for level in range(levels):
-                indices = np.where(np.indices(data.shape)[var] == level)
-                lambda_coeffs[varnames[var]][level] = np.mean(log_fit[indices])
+    
+    # Collect all dimensions that appear in margins
+    all_dims_in_margins = set()
+    for margin in which_x:
+        if isinstance(margin, int):
+            all_dims_in_margins.add(margin)
+        elif isinstance(margin, list):
+            all_dims_in_margins.update(margin)
+    
+    # Compute main effects for all dimensions in margins
+    for dim in all_dims_in_margins:
+        levels = data.shape[dim]
+        lambda_coeffs[varnames[dim]] = np.zeros(levels)
+        for level in range(levels):
+            indices = np.where(np.indices(data.shape)[dim] == level)
+            lambda_coeffs[varnames[dim]][level] = np.mean(log_fit[indices])
+        # Center the coefficients (sum to zero constraint)
+        lambda_coeffs[varnames[dim]] -= np.mean(lambda_coeffs[varnames[dim]])
 
     # Compute interactions
     for interaction in which_x:
@@ -150,12 +263,10 @@ def compute_lambda_coeffs(expected, data, which_x):
             for levels in product(*[range(l) for l in interaction_levels]):
                 indices = np.where(np.all([np.indices(data.shape)[i] == level for i, level in zip(interaction, levels)], axis=0))
                 lambda_coeffs[interaction_name][levels] = np.mean(log_fit[indices])
-    # Ensure each row and column sum to zero
+            # Ensure each margin sums to zero
             for axis in range(len(interaction_levels)):
-                for idx in range(interaction_levels[axis]):
-                    slice_indices = tuple(slice(None) if i != axis else idx for i in range(len(interaction_levels)))
-                    mean = np.mean(lambda_coeffs[interaction_name][slice_indices])
-                    lambda_coeffs[interaction_name][slice_indices] -= mean
+                mean_along_axis = np.mean(lambda_coeffs[interaction_name], axis=axis, keepdims=True)
+                lambda_coeffs[interaction_name] -= mean_along_axis
 
     return lambda_coeffs
 
@@ -163,23 +274,65 @@ def loglin_computation(data, which_x, p_value_threshold=0.05):
     import numpy as np
     # If no interaction terms are provided, use a simple expected value.
     observed = data
+    
+    # Check for degenerate cases
+    if np.sum(observed) < 1e-10:
+        return {
+            'observed': observed,
+            'expected': observed,
+            'l_sq_stat': 0,
+            'd_o_f': 0,
+            'p_value': 1.0,
+            'log_p_value': 0,
+            'model_is_fit': True,
+            'std_residual': np.zeros_like(observed),
+            'num_signif_residual': 0,
+            'lambda_coef': {'Intercept': 0},
+            'pearson_chi2': 0
+        }
+    
     if len(which_x) == 0:
         expected = np.full(observed.shape, np.mean(observed))
-        l_sq_stat = 2 * np.sum(observed * np.log(observed / expected + 1e-10))
+        l_sq_stat = 2 * np.sum(observed * np.log(observed / (expected + 1e-10) + 1e-10))
         d_o_f = np.prod([(dim - 1) for dim in observed.shape])
         lambda_coef = {'Intercept': np.log(np.mean(observed)) - np.log(np.sum(observed))}
+        pearson_chi2 = np.sum((observed - expected) ** 2 / (expected + 1e-10))
     else:
-        computed = loglin(data, which_x)
-        expected = computed['expected']
-        # l_sq_stat = computed['lrt']
-        l_sq_stat = 2 * np.sum(observed * np.log(observed / expected + 1e-10))
-        pearson_chi2 = computed['pearson_chi2']
-        d_o_f = computed['df']
-        lambda_coef = compute_lambda_coeffs(expected, data, which_x)
-        # Adjust intercept to match R implementation
-        lambda_coef['Intercept'] = lambda_coef['Intercept'] - np.log(np.sum(data))
-    p_value = np.exp(np.log(chi2.sf(l_sq_stat, d_o_f) + 1e-10))
-    log_p_value = np.log(p_value + 1e-10)
+        try:
+            computed = loglin(data, which_x)
+            expected = computed['expected']
+            # l_sq_stat = computed['lrt']
+            l_sq_stat = 2 * np.sum(observed * np.log(observed / (expected + 1e-10) + 1e-10))
+            pearson_chi2 = computed['pearson_chi2']
+            d_o_f = computed['df']
+            lambda_coef = compute_lambda_coeffs(expected, data, which_x)
+            # Adjust intercept to match R implementation
+            lambda_coef['Intercept'] = lambda_coef['Intercept'] - np.log(np.sum(data))
+        except Exception as e:
+            # If loglin fails, return a degenerate result
+            return {
+                'observed': observed,
+                'expected': observed,
+                'l_sq_stat': 0,
+                'd_o_f': 0,
+                'p_value': 1.0,
+                'log_p_value': 0,
+                'model_is_fit': True,
+                'std_residual': np.zeros_like(observed),
+                'num_signif_residual': 0,
+                'lambda_coef': {'Intercept': 0},
+                'pearson_chi2': 0
+            }
+    
+    # Protect against invalid df causing NaN p-values
+    if d_o_f <= 0 or not np.isfinite(d_o_f):
+        p_value = 1.0
+        log_p_value = 0.0
+    else:
+        p_value = chi2.sf(l_sq_stat, d_o_f)
+        log_p_value = chi2.logsf(l_sq_stat, d_o_f)
+        if not np.isfinite(log_p_value):
+            log_p_value = -np.inf
     model_is_fit = p_value > p_value_threshold
     residual_matrix = (observed - expected) / np.sqrt(expected + 1e-10)
     num_signif_residual = np.sum(np.abs(residual_matrix) > 1.64)
@@ -983,7 +1136,6 @@ def sort_explanatory_variables(data, target_col, explanatory_cols):
 
         log_p_values[i] = chi2.logsf(l_sq_stat, df=d_o_f)
 
-    
     # Select the variable with the smallest log p-value (most significant)
     init_index = np.argmin(log_p_values)
     selected_col[init_index] = 1
@@ -994,7 +1146,10 @@ def sort_explanatory_variables(data, target_col, explanatory_cols):
     # st.write(encoded_var)
     
     # Coefficient structure for the three-dimensional log-linear model
-    # Matches the R implementation's coeff <- list(1, 2, 3, c(1,2), c(1,3), c(2,3))
+    # R uses: coeff <- list(1, 2, 3, c(1,2), c(1,3), c(2,3))
+    # BUT in IPF, we only specify the HIGHEST-ORDER margins to preserve
+    # The 2-way margins automatically preserve the 1-way margins
+    # In Python (0-indexed): only the 2-way interactions
     coeff = [[0, 1], [0, 2], [1, 2]]
     
     # STEPWISE SELECTION: Iteratively add remaining variables
@@ -1007,9 +1162,10 @@ def sort_explanatory_variables(data, target_col, explanatory_cols):
             
             # NEW CODE: Enforce complete category levels for a proper 3D contingency table
             candidate_series = data.iloc[:, explanatory_cols[i]]
-            encoded_levels = np.arange(1, int(encoded_var.max()) + 1)
-            target_levels = np.arange(1, int(data.iloc[:, target_col].max()) + 1)
-            candidate_levels = np.arange(1, int(candidate_series.max()) + 1)
+            # Use ACTUAL unique values, not a range from 1 to max
+            encoded_levels = sorted(encoded_var.unique())
+            target_levels = sorted(data.iloc[:, target_col].unique())
+            candidate_levels = sorted(candidate_series.unique())
             
             combined_data = pd.DataFrame({
                 'encoded': pd.Categorical(encoded_var, categories=encoded_levels),
@@ -1031,8 +1187,11 @@ def sort_explanatory_variables(data, target_col, explanatory_cols):
             contingency_table = contingency_table.reindex(index=full_index, columns=candidate_levels, fill_value=0)
             observed_3d = contingency_table.values.reshape(encoded_unique, target_unique, candidate_unique)
             
-            log_lin_result = loglin_computation(observed_3d, coeff)
-            log_p_values[i] = log_lin_result['log_p_value']
+            try:
+                log_lin_result = loglin_computation(observed_3d, coeff)
+                log_p_values[i] = log_lin_result['log_p_value']
+            except Exception as e:
+                log_p_values[i] = -np.inf
         
         # Select the variable with the highest log p-value (best fit)
         next_index = np.argmax(log_p_values)
@@ -1044,9 +1203,7 @@ def sort_explanatory_variables(data, target_col, explanatory_cols):
             # Match the R code exactly: encoded.var <- encoded.var * (num.new.category + 1) + selected.var
             num_new_category = selected_var.max()
             encoded_var = encoded_var * (num_new_category + 1) + selected_var
-            # st.write('encoded var 2')
-            # st.write(encoded_var)
     
     # Return explanatory columns in order of importance
     # This matches the R code: return(explanatory.col[order(selected.col)])
-    return [explanatory_cols[i] for i in np.argsort(selected_col)][::-1]
+    return [explanatory_cols[i] for i in np.argsort(selected_col)]

@@ -263,7 +263,8 @@ def m_model_computation(contingency_table, significance_threshold=1.64, p_value_
     phi_idx = np.arange(num_brand)
     cov_matrix = pseudo_inv(fisher_info[phi_idx[:, None], phi_idx])
     diag_cov_matrix = np.diag(cov_matrix)
-    significance_stat = np.abs(np.outer(phi, phi) - np.outer(diag_cov_matrix, diag_cov_matrix)) / np.sqrt(np.outer(diag_cov_matrix, diag_cov_matrix) - 2 * cov_matrix) * np.sqrt(num_people / 2)
+    # Match R: abs(outer(phi, phi, "-")) / sqrt(outer(diag.cov, diag.cov, "+") - 2*cov)
+    significance_stat = np.abs(np.subtract.outer(phi, phi)) / np.sqrt(np.add.outer(diag_cov_matrix, diag_cov_matrix) - 2 * cov_matrix) * np.sqrt(num_people / 2)
     significance_table = significance_stat > significance_threshold
     
     l_sq_stat = np.sum((observed_freq - expected_probs) ** 2 / expected_probs) * num_people
@@ -348,20 +349,29 @@ def m_model_report(result):
     report.append(f"BRL: {' '.join([str(round(val, 2)) for val in result['brl']])}")
     report.append(f"BRA: {' '.join([str(round(val, 2)) for val in result['bra']])}")
 
-    # Significance matrix section with correct phi ordering
+    # Significance matrix section matching R implementation exactly
     report.append("Significance Matrix")
     
     num_brand = len(result['phi'])
+    # phi_ordering[i] gives the brand index (0-indexed in Python) at sorted position i
     phi_ordering = sorted(range(num_brand), key=lambda k: result['phi'][k], reverse=True)
 
-    # Create the significance matrix
-    significance_matrix = pd.DataFrame("", index=[f"Phi[{phi_ordering[i]+1}]" for i in range(num_brand)], 
-                                          columns=[f"Phi[{phi_ordering[j]+1}] ({round(result['phi'][phi_ordering[j]], 2)})" for j in range(num_brand)])
+    # Create the significance matrix with sorted rows and columns
+    significance_matrix = pd.DataFrame("", 
+                                      index=[f"Phi[{phi_ordering[i]+1}]" for i in range(num_brand)], 
+                                      columns=[f"Phi[{phi_ordering[j]+1}] ({round(result['phi'][phi_ordering[j]], 2)})" for j in range(num_brand)])
 
-    for i in range(num_brand):
-        for j in range(num_brand):
-            if result['significance_table'][i, j] and phi_ordering[i] < phi_ordering[j]:
-                significance_matrix.iloc[phi_ordering[i], phi_ordering[j]] = "X"
+    # Match R code: for (j in seq_len(num.brand)) for (i in seq_len(num.brand))
+    # The loop variables represent sorted positions, not brand indices
+    for j in range(num_brand):
+        for i in range(num_brand):
+            # Get the brand indices at these sorted positions
+            brand_at_pos_i = phi_ordering[i]
+            brand_at_pos_j = phi_ordering[j]
+            # Check if these brands are significantly different AND position i is before position j
+            if result['significance_table'][brand_at_pos_i, brand_at_pos_j] and i < j:
+                # Place X at display position (i, j) which are already sorted positions
+                significance_matrix.iloc[i, j] = "X"
     
     report.append(significance_matrix)
     # Model diagnostics as strings
@@ -588,20 +598,29 @@ def q_model_report(result):
     report.append(f"BRL: {' '.join([str(round(val, 2)) for val in result['brl']])}")
     report.append(f"BRA: {' '.join([str(round(val, 2)) for val in result['bra']])}")
 
-    # Significance matrix section with correct phi ordering
+    # Significance matrix section matching R implementation exactly
     report.append("Significance Matrix")
     
     num_brand = len(result['phi'])
+    # phi_ordering[i] gives the brand index (0-indexed in Python) at sorted position i
     phi_ordering = sorted(range(num_brand), key=lambda k: result['phi'][k], reverse=True)
 
-    # Create the significance matrix
-    significance_matrix = pd.DataFrame("", index=[f"Phi[{phi_ordering[i]+1}]" for i in range(num_brand)], 
-                                          columns=[f"Phi[{phi_ordering[j]+1}] ({round(result['phi'][phi_ordering[j]], 2)})" for j in range(num_brand)])
+    # Create the significance matrix with sorted rows and columns
+    significance_matrix = pd.DataFrame("", 
+                                      index=[f"Phi[{phi_ordering[i]+1}]" for i in range(num_brand)], 
+                                      columns=[f"Phi[{phi_ordering[j]+1}] ({round(result['phi'][phi_ordering[j]], 2)})" for j in range(num_brand)])
 
-    for i in range(num_brand):
-        for j in range(num_brand):
-            if result['significance_table'][i, j] and phi_ordering[i] < phi_ordering[j]:
-                significance_matrix.iloc[phi_ordering[i], phi_ordering[j]] = "X"
+    # Match R code: for (j in seq_len(num.brand)) for (i in seq_len(num.brand))
+    # The loop variables represent sorted positions, not brand indices
+    for j in range(num_brand):
+        for i in range(num_brand):
+            # Get the brand indices at these sorted positions
+            brand_at_pos_i = phi_ordering[i]
+            brand_at_pos_j = phi_ordering[j]
+            # Check if these brands are significantly different AND position i is before position j
+            if result['significance_table'][brand_at_pos_i, brand_at_pos_j] and i < j:
+                # Place X at display position (i, j) which are already sorted positions
+                significance_matrix.iloc[i, j] = "X"
     
     report.append(significance_matrix)
 

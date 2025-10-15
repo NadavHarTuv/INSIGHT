@@ -564,8 +564,9 @@ def oos_testing_report_grouped(sampling_result, training_fraction, g=None, show_
     for (start, end) in groups:
         # Slice the test death counts according to the group. (Adjusting for 1-indexing)
         dp_group = test_death_per_period[start-1:end]
-        # Use the same test_still_survive for each group (if appropriate)
-        ss = test_still_survive
+        # Add deaths from stages beyond this group to still_survive
+        remaining_deaths = test_death_per_period[end:] if end < len(test_death_per_period) else []
+        ss = test_still_survive + np.sum(remaining_deaths)
         
         homo_computed = homogeneous_computation(dp_group, ss)
         homo_report = homogeneous_report(homo_computed, first_stage_idx=start)
@@ -632,8 +633,9 @@ def create_report(death_per_period, still_survive, show_plot, g=None):
     for (start, end) in groups:
         # Slice the death counts (adjusting for 1-indexed input)
         dp_group = death_per_period[start-1:end]
-        # You might want to adjust still_survive for groups—but here we use it as is.
-        ss = still_survive
+        # Add deaths from stages beyond this group to still_survive
+        remaining_deaths = death_per_period[end:] if end < len(death_per_period) else []
+        ss = still_survive + np.sum(remaining_deaths)
 
         # Compute Homogeneous and ACC/DC results on the subset.
         homo_computed = homogeneous_computation(dp_group, ss)

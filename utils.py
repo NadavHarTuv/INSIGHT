@@ -190,22 +190,28 @@ def load_data(uploaded_file, analysis_method):
             if selected_format == 'Rows of subjects':
                 first_column_text = st.sidebar.text_input("Which column in file for 1st purchase?")
                 second_column_text = st.sidebar.text_input("Which column in file for 2nd purchase?")
-            if first_column_text and second_column_text:
-                try:
-                    first_column_int = int(first_column_text) - 1 
-                    second_column_int = int(second_column_text) - 1
-                    if first_column_int < 0 or first_column_int > raw_data.shape[1] or second_column_int < 0 or second_column_int > raw_data.shape[1] or second_column_int==first_column_int:
-                        st.sidebar.warning('Both columns should be in the data and different from eachother')
-                    else:
-                        st.session_state['loyalty_col_1'] = first_column_text
-                        st.session_state['loyalty_col_2'] = second_column_text
-                        contingency_table = pd.crosstab(raw_data.iloc[:,first_column_int].astype(int),
-                                                    raw_data.iloc[:,second_column_int].astype(int))
-                        return (raw_data, contingency_table)
-
-                except:
-                    Exception("both columns must be integers")
+                
+                if first_column_text and second_column_text:
+                    try:
+                        first_column_int = int(first_column_text) - 1 
+                        second_column_int = int(second_column_text) - 1
+                        if first_column_int < 0 or first_column_int > raw_data.shape[1] or second_column_int < 0 or second_column_int > raw_data.shape[1] or second_column_int==first_column_int:
+                            st.sidebar.warning('Both columns should be in the data and different from eachother')
+                            return (raw_data, None)
+                        else:
+                            st.session_state['loyalty_col_1'] = first_column_text
+                            st.session_state['loyalty_col_2'] = second_column_text
+                            contingency_table = pd.crosstab(raw_data.iloc[:,first_column_int].astype(int),
+                                                        raw_data.iloc[:,second_column_int].astype(int))
+                            return (raw_data, contingency_table)
+                    except:
+                        st.sidebar.warning("Both columns must be integers")
+                        return (raw_data, None)
+                else:
+                    # Waiting for both inputs
+                    return (raw_data, None)
             else:
+                # Contingency table format
                 return (raw_data, raw_data)
             
         elif analysis_method == 'Ranking':
