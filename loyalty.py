@@ -207,7 +207,7 @@ def m_model_computation(contingency_table, significance_threshold=1.64, p_value_
     fisher_info_phi_alpha = expected.T * np.outer(np.ones(num_brand), (1 - phi) / alpha)
     np.fill_diagonal(fisher_info_phi_alpha, (delta * expected_diag - np.dot(expected_offdiag, phi)) / alpha)
     
-    fisher_info_phi_beta = -expected * np.outer(phi, 1 / beta)
+    fisher_info_phi_beta = -expected * np.outer(np.ones(num_brand), phi / beta)
     np.fill_diagonal(fisher_info_phi_beta, (delta * expected_diag + np.dot(1 - phi, expected_offdiag)) / beta)
     
     fisher_info_phi_delta = (delta * phi - 1) * expected_diag
@@ -241,28 +241,32 @@ def m_model_computation(contingency_table, significance_threshold=1.64, p_value_
     fisher_info[:num_brand, num_brand] = fisher_info_phi_delta
     fisher_info[:num_brand, num_brand+1:2*num_brand+1] = fisher_info_phi_alpha
     fisher_info[:num_brand, 2*num_brand+1:3*num_brand+1] = fisher_info_phi_beta
-    fisher_info[:num_brand, 3*num_brand+2] = fisher_info_phi_eta1
-    fisher_info[:num_brand, 3*num_brand+3] = fisher_info_phi_eta2
-    fisher_info[:num_brand, 3*num_brand+3] = fisher_info_phi_eta3  # Corrected index
+    fisher_info[:num_brand, 3*num_brand+1] = fisher_info_phi_eta1  # R index 3*num.brand+2 -> Python 3*num_brand+1 (0-indexed)
+    fisher_info[:num_brand, 3*num_brand+2] = fisher_info_phi_eta2  # R index 3*num.brand+3 -> Python 3*num_brand+2 (0-indexed)
+    fisher_info[:num_brand, 3*num_brand+3] = fisher_info_phi_eta3  # R index 3*num.brand+4 -> Python 3*num_brand+3 (0-indexed)
 
     fisher_info[num_brand, num_brand] = fisher_info_delta_delta
     fisher_info[num_brand, num_brand+1:2*num_brand+1] = fisher_info_delta_alpha
     fisher_info[num_brand, 2*num_brand+1:3*num_brand+1] = fisher_info_delta_beta
-    fisher_info[num_brand, 3*num_brand+2] = fisher_info_delta_eta1
+    fisher_info[num_brand, 3*num_brand+1] = fisher_info_delta_eta1  # R index 3*num.brand+2 -> Python 3*num_brand+1 (0-indexed)
 
     fisher_info[num_brand+1:num_brand+1+num_brand, num_brand+1:num_brand+1+num_brand] = fisher_info_alpha_alpha
     fisher_info[num_brand+1:num_brand+1+num_brand, 2*num_brand+1:3*num_brand+1] = fisher_info_alpha_beta
-    fisher_info[num_brand+1:num_brand+1+num_brand, 3*num_brand+2] = fisher_info_alpha_eta1
+    fisher_info[num_brand+1:num_brand+1+num_brand, 3*num_brand+1] = fisher_info_alpha_eta1  # R index 3*num.brand+2 -> Python 3*num_brand+1 (0-indexed)
 
     fisher_info[2*num_brand+1:3*num_brand+1, 2*num_brand+1:3*num_brand+1] = fisher_info_beta_beta
-    fisher_info[2*num_brand+1:3*num_brand+1, 3*num_brand+2] = fisher_info_beta_eta1
+    fisher_info[2*num_brand+1:3*num_brand+1, 3*num_brand+1] = fisher_info_beta_eta1  # R index 3*num.brand+2 -> Python 3*num_brand+1 (0-indexed)
     
-    fisher_info = (fisher_info + fisher_info.T) / num_people
+    # Make symmetric: copy upper triangle to lower triangle (like R)
+    i_lower = np.tril_indices(fisher_info.shape[0], -1)
+    fisher_info[i_lower] = fisher_info.T[i_lower]
+    fisher_info = fisher_info / num_people
     
     # Compute significance matrix
-    phi_idx = np.arange(num_brand)
-    cov_matrix = pseudo_inv(fisher_info[phi_idx[:, None], phi_idx])
+    # Extract phi-phi block using simple slicing (like R: fisher.info[phi.idx, phi.idx])
+    cov_matrix = pseudo_inv(fisher_info[:num_brand, :num_brand])
     diag_cov_matrix = np.diag(cov_matrix)
+    
     # Match R: abs(outer(phi, phi, "-")) / sqrt(outer(diag.cov, diag.cov, "+") - 2*cov)
     significance_stat = np.abs(np.subtract.outer(phi, phi)) / np.sqrt(np.add.outer(diag_cov_matrix, diag_cov_matrix) - 2 * cov_matrix) * np.sqrt(num_people / 2)
     significance_table = significance_stat > significance_threshold
@@ -349,30 +353,8 @@ def m_model_report(result):
     report.append(f"BRL: {' '.join([str(round(val, 2)) for val in result['brl']])}")
     report.append(f"BRA: {' '.join([str(round(val, 2)) for val in result['bra']])}")
 
-    # Significance matrix section matching R implementation exactly
     report.append("Significance Matrix")
-    
-    num_brand = len(result['phi'])
-    # phi_ordering[i] gives the brand index (0-indexed in Python) at sorted position i
-    phi_ordering = sorted(range(num_brand), key=lambda k: result['phi'][k], reverse=True)
-
-    # Create the significance matrix with sorted rows and columns
-    significance_matrix = pd.DataFrame("", 
-                                      index=[f"Phi[{phi_ordering[i]+1}]" for i in range(num_brand)], 
-                                      columns=[f"Phi[{phi_ordering[j]+1}] ({round(result['phi'][phi_ordering[j]], 2)})" for j in range(num_brand)])
-
-    # Match R code: for (j in seq_len(num.brand)) for (i in seq_len(num.brand))
-    # The loop variables represent sorted positions, not brand indices
-    for j in range(num_brand):
-        for i in range(num_brand):
-            # Get the brand indices at these sorted positions
-            brand_at_pos_i = phi_ordering[i]
-            brand_at_pos_j = phi_ordering[j]
-            # Check if these brands are significantly different AND position i is before position j
-            if result['significance_table'][brand_at_pos_i, brand_at_pos_j] and i < j:
-                # Place X at display position (i, j) which are already sorted positions
-                significance_matrix.iloc[i, j] = "X"
-    
+    significance_matrix = build_significance_display(result['phi'], result['significance_table'])
     report.append(significance_matrix)
     # Model diagnostics as strings
     report.append("Model Diagnostics")
@@ -464,7 +446,7 @@ def q_model_computation(contingency_table, significance_threshold=1.64, p_value_
     fisher_info_phi_alpha = expected.T * np.outer(np.ones(num_brand), (1 - phi) / alpha)
     np.fill_diagonal(fisher_info_phi_alpha, np.dot(expected_offdiag, phi) / alpha)
     
-    fisher_info_phi_beta = -expected * np.outer(phi, 1 / beta)
+    fisher_info_phi_beta = -expected * np.outer(np.ones(num_brand), phi / beta)
     np.fill_diagonal(fisher_info_phi_beta, np.dot(1 - phi, expected_offdiag) / beta)
     
     fisher_info_alpha_alpha = np.zeros((num_brand, num_brand))
@@ -513,12 +495,18 @@ def q_model_computation(contingency_table, significance_threshold=1.64, p_value_
 
 
     # Compute significance matrix
-    non_a_b_idx = np.concatenate([np.arange(num_brand), [3*num_brand, 3*num_brand+1, 3*num_brand+2]])
-    cov_matrix = pseudo_inv(fisher_info[non_a_b_idx[:, None], non_a_b_idx])
+    # R: non.a.b.idx <- c(1:num.brand, 3*num.brand+1:3)
+    # In 0-indexed Python: [0:num_brand, 3*num_brand:3*num_brand+2]
+    non_a_b_idx = np.concatenate([np.arange(num_brand), np.arange(3*num_brand, 3*num_brand+3)])
+    # Use simple slicing like R: fisher.info[non.a.b.idx, non.a.b.idx]
+    # Extract rows and columns using the indices
+    fisher_subset = fisher_info[np.ix_(non_a_b_idx, non_a_b_idx)]
+    cov_matrix = pseudo_inv(fisher_subset)
     cov_matrix = cov_matrix[:num_brand, :num_brand]
     diag_cov_matrix = np.diag(cov_matrix)
     significance_stat = np.abs(np.subtract.outer(phi, phi)) / np.sqrt(np.add.outer(diag_cov_matrix, diag_cov_matrix) - 2 * cov_matrix) * np.sqrt(num_people / 2)
     significance_table = significance_stat > significance_threshold
+    
     
     l_sq_stat = np.sum((observed_freq - expected_probs) ** 2 / expected_probs) * num_people
     dof = (num_brand - 1) * (num_brand - 3)
@@ -598,30 +586,8 @@ def q_model_report(result):
     report.append(f"BRL: {' '.join([str(round(val, 2)) for val in result['brl']])}")
     report.append(f"BRA: {' '.join([str(round(val, 2)) for val in result['bra']])}")
 
-    # Significance matrix section matching R implementation exactly
     report.append("Significance Matrix")
-    
-    num_brand = len(result['phi'])
-    # phi_ordering[i] gives the brand index (0-indexed in Python) at sorted position i
-    phi_ordering = sorted(range(num_brand), key=lambda k: result['phi'][k], reverse=True)
-
-    # Create the significance matrix with sorted rows and columns
-    significance_matrix = pd.DataFrame("", 
-                                      index=[f"Phi[{phi_ordering[i]+1}]" for i in range(num_brand)], 
-                                      columns=[f"Phi[{phi_ordering[j]+1}] ({round(result['phi'][phi_ordering[j]], 2)})" for j in range(num_brand)])
-
-    # Match R code: for (j in seq_len(num.brand)) for (i in seq_len(num.brand))
-    # The loop variables represent sorted positions, not brand indices
-    for j in range(num_brand):
-        for i in range(num_brand):
-            # Get the brand indices at these sorted positions
-            brand_at_pos_i = phi_ordering[i]
-            brand_at_pos_j = phi_ordering[j]
-            # Check if these brands are significantly different AND position i is before position j
-            if result['significance_table'][brand_at_pos_i, brand_at_pos_j] and i < j:
-                # Place X at display position (i, j) which are already sorted positions
-                significance_matrix.iloc[i, j] = "X"
-    
+    significance_matrix = build_significance_display(result['phi'], result['significance_table'])
     report.append(significance_matrix)
 
     # Model diagnostics as strings
@@ -667,6 +633,41 @@ def bra_brl_plot(bra, brl):
 
     # Return the figure object
     return fig
+
+
+def build_significance_display(phi_values, significance_table):
+    """
+    Replicates the R reporting logic:
+    - sort brands by descending phi
+    - construct the same temp matrix with header/separator rows
+    - place 'X' using brand indices (1-indexed in R)
+    """
+    num_brand = len(phi_values)
+    phi_ordering = sorted(range(num_brand), key=lambda k: phi_values[k], reverse=True)
+    phi_ordering_1 = [idx + 1 for idx in phi_ordering]
+
+    rows = [["" for _ in range(num_brand + 1)] for _ in range(num_brand + 2)]
+
+    for i, brand_idx in enumerate(phi_ordering, start=1):
+        rows[1 + i][0] = f"Phi[{brand_idx + 1}]"
+
+    for j, brand_idx in enumerate(phi_ordering, start=1):
+        header = f"[{brand_idx + 1}]{phi_values[brand_idx]:.2f}"
+        rows[0][j] = header
+        rows[1][j] = "=" * (len(header) + 1)
+
+    for j_r in range(1, num_brand + 1):
+        for i_r in range(1, num_brand + 1):
+            if significance_table[i_r - 1, j_r - 1] and phi_ordering_1[i_r - 1] < phi_ordering_1[j_r - 1]:
+                row_idx = 1 + phi_ordering_1[i_r - 1]
+                col_idx = phi_ordering_1[j_r - 1]
+                rows[row_idx][col_idx] = "X"
+
+    data = [row[1:] for row in rows[2:]]
+    index = [row[0] for row in rows[2:]]
+    columns = rows[0][1:]
+
+    return pd.DataFrame(data, index=index, columns=columns)
 
 
 def explanatory_input():
