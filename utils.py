@@ -9,6 +9,9 @@ import re
 analysis_methods = ['Independence', '3-Dimensional', 'N-Dimensional', 'Survival', 
                     'Loyalty', 'Ranking', 'Spacing Models', 'Scale Conversion']
 
+# Unified help text for range/group inputs across all modules
+RANGE_INPUT_HELP = "Enter ranges using format: '1-3;4,5' (use '-' for ranges, ',' to separate items, ';' to separate groups)"
+
 model_names = {
     'Independence': ["Independence Model",
                         "ANOAS Model",
