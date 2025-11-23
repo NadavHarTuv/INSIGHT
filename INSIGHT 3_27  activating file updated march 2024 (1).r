@@ -1638,6 +1638,12 @@ threedimensional.sort.explanatory.variables <- function(all.data, target.col,
     log.p.values[i] <- pchisq(l.sq.stat, df=d.o.f, lower.tail=FALSE,
                               log.p=TRUE)
   }
+  
+  # DEBUG: Print initial selection
+  print(paste("DEBUG R SORT: Initial log.p.values for vars", paste(explanatory.col, collapse=", "), ":", paste(log.p.values, collapse=", ")))
+  init.idx <- which.min(log.p.values)
+  print(paste("DEBUG R SORT: Selected initial variable", explanatory.col[init.idx], "(index", init.idx, ")"))
+  
   selected.col[which.min(log.p.values)] <- 1
   encoded.var <- all.data[,explanatory.col[which(selected.col==1)]]
   
@@ -1656,14 +1662,25 @@ threedimensional.sort.explanatory.variables <- function(all.data, target.col,
       log.lin.result <- three.dimensional.loglin.computation(observed.i,
                                                              coeff)
       log.p.values[i] <- log.lin.result$log.p.value
+      print(paste("DEBUG R SORT iter", t, ": Var", explanatory.col[i], "shape=", paste(dim(observed.i), collapse="x"), "log_p=", sprintf("%.4f", log.p.values[i]), "p-value=", sprintf("%.4f", log.lin.result$p.value)))
     }
-    selected.col[which.max(log.p.values)] <- t
+    next.idx <- which.max(log.p.values)
+    selected.col[next.idx] <- t
+    print(paste("DEBUG R SORT iter", t, ": Selected variable", explanatory.col[next.idx], "(index", next.idx, ") with log_p=", sprintf("%.4f", log.p.values[next.idx])))
+    
     if (t < num.explanatory) {
       selected.var <- all.data[,explanatory.col[which(selected.col==t)]]
       num.new.category <- max(selected.var)
       encoded.var <- encoded.var * (num.new.category + 1) + selected.var
     }
   }
+  
+  # DEBUG: Print final ordering
+  print(paste("DEBUG R SORT: selected.col array:", paste(selected.col, collapse=", ")))
+  print(paste("DEBUG R SORT: order(selected.col):", paste(order(selected.col), collapse=", ")))
+  final.order <- explanatory.col[order(selected.col)]
+  print(paste("DEBUG R SORT: Final ordering:", paste(final.order, collapse=", ")))
+  
   return(explanatory.col[order(selected.col)])
 }
 
@@ -2058,9 +2075,6 @@ n.dimensional.select.model.computation <- function(data, predictor.variable, tar
   
   mu <- list()
   
-  print('lambda.coef')
-  print(lambda.coef)
-  
   for (i in lambda.coef.names) {
     if (i == target.idx) {
       mu[[i]] <- -diff(lambda.coef[[as.character(target.idx)]])
@@ -2075,8 +2089,6 @@ n.dimensional.select.model.computation <- function(data, predictor.variable, tar
   # compute the propensities
 
   explanatory.mu <- mu[names(mu)[names(mu) != as.character(target.idx)]]
-  print('explanatory.mu:')
-  print(explanatory.mu)
   
   
   sequences <- list()
@@ -3486,10 +3498,24 @@ loyalty.m.model.computation <- function(contingency.table,
   phi.idx <-1:num.brand
   cov.matrix <- pseudo.inv(fisher.info[phi.idx, phi.idx])
   diag.cov.matrix <- diag(cov.matrix)
+  
+  # DEBUG M Model
+  print("DEBUG M MODEL: phi values:")
+  print(phi)
+  print("DEBUG M MODEL: diag.cov.matrix:")
+  print(diag.cov.matrix)
+  print("DEBUG M MODEL: cov.matrix (full):")
+  print(cov.matrix)
+  
   significance.stat <- abs(outer(phi, phi, "-")) /
     sqrt(outer(diag.cov.matrix, diag.cov.matrix, "+") - 2 * cov.matrix) *
     sqrt(num.people / 2)
   significance.table <- significance.stat > significance.threshold
+  
+  print("DEBUG M MODEL: significance.stat:")
+  print(significance.stat)
+  print("DEBUG M MODEL: significance.table:")
+  print(significance.table)
   
   observed <- contingency.table
   tau.given.row <- independence.goodman.kruskal.tau(observed, by.col.given.row=TRUE)
@@ -3692,6 +3718,18 @@ loyalty.q.model.computation <- function(contingency.table,
     sqrt(outer(diag.cov.matrix, diag.cov.matrix, "+") - 2 * cov.matrix) *
     sqrt(num.people / 2)
   significance.table <- significance.stat > significance.threshold
+  
+  # DEBUG Q Model
+  print("DEBUG Q MODEL: phi values:")
+  print(phi)
+  print("DEBUG Q MODEL: diag.cov.matrix:")
+  print(diag.cov.matrix)
+  print("DEBUG Q MODEL: cov.matrix (full):")
+  print(cov.matrix)
+  print("DEBUG Q MODEL: significance.stat:")
+  print(significance.stat)
+  print("DEBUG Q MODEL: significance.table:")
+  print(significance.table)
   
   observed <- contingency.table
   expected <- expected.probs * num.people
@@ -7401,6 +7439,10 @@ observeEvent(input$loyaltyGo, {
       num.brand <- length(result$phi)
       temp <- matrix("", 2+num.brand, 1+num.brand)
       phi.ordering <- order(result$phi, decreasing=TRUE)
+      
+      # DEBUG M DISPLAY
+      print(paste("DEBUG M DISPLAY: phi.ordering =", paste(phi.ordering, collapse=", ")))
+      
       for(i in seq_len(num.brand)) {
         temp[2+i,1] <- paste0("Phi[", phi.ordering[i], "]")
       }
@@ -7413,6 +7455,7 @@ observeEvent(input$loyaltyGo, {
         for (i in seq_len(num.brand)) {
           if (isTRUE(result$significance.table[i,j]) &&
               phi.ordering[i] < phi.ordering[j]) {
+            print(paste("DEBUG M DISPLAY: X at i=", i, "j=", j, "phi.ordering[i]=", phi.ordering[i], "phi.ordering[j]=", phi.ordering[j]))
             temp[2+phi.ordering[i],1+phi.ordering[j]] <- "X"
           }
         }
@@ -7494,6 +7537,10 @@ observeEvent(input$loyaltyGo, {
       num.brand <- length(result$phi)
       temp <- matrix("", 2+num.brand, 1+num.brand)
       phi.ordering <- order(result$phi, decreasing=TRUE)
+      
+      # DEBUG Q DISPLAY
+      print(paste("DEBUG Q DISPLAY: phi.ordering =", paste(phi.ordering, collapse=", ")))
+      
       for(i in seq_len(num.brand)) {
         temp[2+i,1] <- paste0("Phi[", phi.ordering[i], "]")
       }
@@ -7506,6 +7553,7 @@ observeEvent(input$loyaltyGo, {
         for (i in seq_len(num.brand)) {
           if (isTRUE(result$significance.table[i,j]) &&
               phi.ordering[i] < phi.ordering[j]) {
+            print(paste("DEBUG Q DISPLAY: X at i=", i, "j=", j, "phi.ordering[i]=", phi.ordering[i], "phi.ordering[j]=", phi.ordering[j]))
             temp[2+phi.ordering[i],1+phi.ordering[j]] <- "X"
           }
         }

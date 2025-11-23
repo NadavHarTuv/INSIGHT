@@ -1,0 +1,146 @@
+[1mdiff --git a/INSIGHT 3_27  activating file updated march 2024 (1).r b/INSIGHT 3_27  activating file updated march 2024 (1).r[m
+[1mindex ddf3684..2936ac7 100644[m
+[1m--- a/INSIGHT 3_27  activating file updated march 2024 (1).r[m	
+[1m+++ b/INSIGHT 3_27  activating file updated march 2024 (1).r[m	
+[36m@@ -1638,6 +1638,12 @@[m [mthreedimensional.sort.explanatory.variables <- function(all.data, target.col,[m
+     log.p.values[i] <- pchisq(l.sq.stat, df=d.o.f, lower.tail=FALSE,[m
+                               log.p=TRUE)[m
+   }[m
+[32m+[m[41m  [m
+[32m+[m[32m  # DEBUG: Print initial selection[m
+[32m+[m[32m  print(paste("DEBUG R SORT: Initial log.p.values for vars", paste(explanatory.col, collapse=", "), ":", paste(log.p.values, collapse=", ")))[m
+[32m+[m[32m  init.idx <- which.min(log.p.values)[m
+[32m+[m[32m  print(paste("DEBUG R SORT: Selected initial variable", explanatory.col[init.idx], "(index", init.idx, ")"))[m
+[32m+[m[41m  [m
+   selected.col[which.min(log.p.values)] <- 1[m
+   encoded.var <- all.data[,explanatory.col[which(selected.col==1)]][m
+   [m
+[36m@@ -1656,14 +1662,25 @@[m [mthreedimensional.sort.explanatory.variables <- function(all.data, target.col,[m
+       log.lin.result <- three.dimensional.loglin.computation(observed.i,[m
+                                                              coeff)[m
+       log.p.values[i] <- log.lin.result$log.p.value[m
+[32m+[m[32m      print(paste("DEBUG R SORT iter", t, ": Var", explanatory.col[i], "shape=", paste(dim(observed.i), collapse="x"), "log_p=", sprintf("%.4f", log.p.values[i]), "p-value=", sprintf("%.4f", log.lin.result$p.value)))[m
+     }[m
+[31m-    selected.col[which.max(log.p.values)] <- t[m
+[32m+[m[32m    next.idx <- which.max(log.p.values)[m
+[32m+[m[32m    selected.col[next.idx] <- t[m
+[32m+[m[32m    print(paste("DEBUG R SORT iter", t, ": Selected variable", explanatory.col[next.idx], "(index", next.idx, ") with log_p=", sprintf("%.4f", log.p.values[next.idx])))[m
+[32m+[m[41m    [m
+     if (t < num.explanatory) {[m
+       selected.var <- all.data[,explanatory.col[which(selected.col==t)]][m
+       num.new.category <- max(selected.var)[m
+       encoded.var <- encoded.var * (num.new.category + 1) + selected.var[m
+     }[m
+   }[m
+[32m+[m[41m  [m
+[32m+[m[32m  # DEBUG: Print final ordering[m
+[32m+[m[32m  print(paste("DEBUG R SORT: selected.col array:", paste(selected.col, collapse=", ")))[m
+[32m+[m[32m  print(paste("DEBUG R SORT: order(selected.col):", paste(order(selected.col), collapse=", ")))[m
+[32m+[m[32m  final.order <- explanatory.col[order(selected.col)][m
+[32m+[m[32m  print(paste("DEBUG R SORT: Final ordering:", paste(final.order, collapse=", ")))[m
+[32m+[m[41m  [m
+   return(explanatory.col[order(selected.col)])[m
+ }[m
+ [m
+[36m@@ -2058,9 +2075,6 @@[m [mn.dimensional.select.model.computation <- function(data, predictor.variable, tar[m
+   [m
+   mu <- list()[m
+   [m
+[31m-  print('lambda.coef')[m
+[31m-  print(lambda.coef)[m
+[31m-  [m
+   for (i in lambda.coef.names) {[m
+     if (i == target.idx) {[m
+       mu[[i]] <- -diff(lambda.coef[[as.character(target.idx)]])[m
+[36m@@ -2075,8 +2089,6 @@[m [mn.dimensional.select.model.computation <- function(data, predictor.variable, tar[m
+   # compute the propensities[m
+ [m
+   explanatory.mu <- mu[names(mu)[names(mu) != as.character(target.idx)]][m
+[31m-  print('explanatory.mu:')[m
+[31m-  print(explanatory.mu)[m
+   [m
+   [m
+   sequences <- list()[m
+[36m@@ -3486,11 +3498,25 @@[m [mloyalty.m.model.computation <- function(contingency.table,[m
+   phi.idx <-1:num.brand[m
+   cov.matrix <- pseudo.inv(fisher.info[phi.idx, phi.idx])[m
+   diag.cov.matrix <- diag(cov.matrix)[m
+[32m+[m[41m  [m
+[32m+[m[32m  # DEBUG M Model[m
+[32m+[m[32m  print("DEBUG M MODEL: phi values:")[m
+[32m+[m[32m  print(phi)[m
+[32m+[m[32m  print("DEBUG M MODEL: diag.cov.matrix:")[m
+[32m+[m[32m  print(diag.cov.matrix)[m
+[32m+[m[32m  print("DEBUG M MODEL: cov.matrix (full):")[m
+[32m+[m[32m  print(cov.matrix)[m
+[32m+[m[41m  [m
+   significance.stat <- abs(outer(phi, phi, "-")) /[m
+     sqrt(outer(diag.cov.matrix, diag.cov.matrix, "+") - 2 * cov.matrix) *[m
+     sqrt(num.people / 2)[m
+   significance.table <- significance.stat > significance.threshold[m
+   [m
+[32m+[m[32m  print("DEBUG M MODEL: significance.stat:")[m
+[32m+[m[32m  print(significance.stat)[m
+[32m+[m[32m  print("DEBUG M MODEL: significance.table:")[m
+[32m+[m[32m  print(significance.table)[m
+[32m+[m[41m  [m
+   observed <- contingency.table[m
+   tau.given.row <- independence.goodman.kruskal.tau(observed, by.col.given.row=TRUE)[m
+   tau.given.col <- independence.goodman.kruskal.tau(observed, by.col.given.row=FALSE)[m
+[36m@@ -3693,6 +3719,18 @@[m [mloyalty.q.model.computation <- function(contingency.table,[m
+     sqrt(num.people / 2)[m
+   significance.table <- significance.stat > significance.threshold[m
+   [m
+[32m+[m[32m  # DEBUG Q Model[m
+[32m+[m[32m  print("DEBUG Q MODEL: phi values:")[m
+[32m+[m[32m  print(phi)[m
+[32m+[m[32m  print("DEBUG Q MODEL: diag.cov.matrix:")[m
+[32m+[m[32m  print(diag.cov.matrix)[m
+[32m+[m[32m  print("DEBUG Q MODEL: cov.matrix (full):")[m
+[32m+[m[32m  print(cov.matrix)[m
+[32m+[m[32m  print("DEBUG Q MODEL: significance.stat:")[m
+[32m+[m[32m  print(significance.stat)[m
+[32m+[m[32m  print("DEBUG Q MODEL: significance.table:")[m
+[32m+[m[32m  print(significance.table)[m
+[32m+[m[41m  [m
+   observed <- contingency.table[m
+   expected <- expected.probs * num.people[m
+   tau.given.row <- independence.goodman.kruskal.tau(observed, by.col.given.row=TRUE)[m
+[36m@@ -7401,6 +7439,10 @@[m [mobserveEvent(input$loyaltyGo, {[m
+       num.brand <- length(result$phi)[m
+       temp <- matrix("", 2+num.brand, 1+num.brand)[m
+       phi.ordering <- order(result$phi, decreasing=TRUE)[m
+[32m+[m[41m      [m
+[32m+[m[32m      # DEBUG M DISPLAY[m
+[32m+[m[32m      print(paste("DEBUG M DISPLAY: phi.ordering =", paste(phi.ordering, collapse=", ")))[m
+[32m+[m[41m      [m
+       for(i in seq_len(num.brand)) {[m
+         temp[2+i,1] <- paste0("Phi[", phi.ordering[i], "]")[m
+       }[m
+[36m@@ -7413,6 +7455,7 @@[m [mobserveEvent(input$loyaltyGo, {[m
+         for (i in seq_len(num.brand)) {[m
+           if (isTRUE(result$significance.table[i,j]) &&[m
+               phi.ordering[i] < phi.ordering[j]) {[m
+[32m+[m[32m            print(paste("DEBUG M DISPLAY: X at i=", i, "j=", j, "phi.ordering[i]=", phi.ordering[i], "phi.ordering[j]=", phi.ordering[j]))[m
+             temp[2+phi.ordering[i],1+phi.ordering[j]] <- "X"[m
+           }[m
+         }[m
+[36m@@ -7494,6 +7537,10 @@[m [mobserveEvent(input$loyaltyGo, {[m
+       num.brand <- length(result$phi)[m
+       temp <- matrix("", 2+num.brand, 1+num.brand)[m
+       phi.ordering <- order(result$phi, decreasing=TRUE)[m
+[32m+[m[41m      [m
+[32m+[m[32m      # DEBUG Q DISPLAY[m
+[32m+[m[32m      print(paste("DEBUG Q DISPLAY: phi.ordering =", paste(phi.ordering, collapse=", ")))[m
+[32m+[m[41m      [m
+       for(i in seq_len(num.brand)) {[m
+         temp[2+i,1] <- paste0("Phi[", phi.ordering[i], "]")[m
+       }[m
+[36m@@ -7506,6 +7553,7 @@[m [mobserveEvent(input$loyaltyGo, {[m
+         for (i in seq_len(num.brand)) {[m
+           if (isTRUE(result$significance.table[i,j]) &&[m
+               phi.ordering[i] < phi.ordering[j]) {[m
+[32m+[m[32m            print(paste("DEBUG Q DISPLAY: X at i=", i, "j=", j, "phi.ordering[i]=", phi.ordering[i], "phi.ordering[j]=", phi.ordering[j]))[m
+             temp[2+phi.ordering[i],1+phi.ordering[j]] <- "X"[m
+           }[m
+         }[m
