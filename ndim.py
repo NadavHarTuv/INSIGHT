@@ -14,9 +14,11 @@ def read_input(ndim_data):
     target = None
     constraints = None
     
-    predictors_text = st.sidebar.text_input("Predictor variable(s)", help="select the predictor variables as groups joined by '-' or ',' and separated by ';")
+    predictors_text = st.sidebar.text_input("Predictor variable(s)", help=utils.RANGE_INPUT_HELP)
     target_text = threedim.get_target_variable(ndim_data)
-    constraits_text = st.sidebar.text_input("Client constraints")
+    constraints_text = st.sidebar.text_input("Client constraints (predictor indices to force in model)", 
+                                             value="",
+                                             help=utils.RANGE_INPUT_HELP)
     
     # Extract digits from target_text using regex
     digits = re.findall(r'\d+', target_text)
@@ -32,8 +34,27 @@ def read_input(ndim_data):
             if target in subgroup:
                 st.sidebar.warning('Target variable cannot be a predictor')
                 predictors = None
-    if constraits_text:
-        constraints = utils.parse_text_groups(constraits_text)        
+    
+    # Parse constraints - these are 0-based predictor indices from the predictors list
+    if constraints_text and predictors:
+        try:
+            # Parse as groups, then flatten and convert to 0-based
+            constraint_groups = utils.parse_text_groups(constraints_text)
+            if constraint_groups:
+                # Flatten all groups and ensure they're valid predictor indices
+                flat_constraints = []
+                for group in constraint_groups:
+                    flat_constraints.extend(group)
+                # These are column indices from the full data - need to match with predictor_variables
+                constraints = [flat_constraints]  # Wrap in list as expected by computation
+            else:
+                constraints = None
+        except Exception as e:
+            st.sidebar.error(f"Invalid client constraints format: {str(e)}")
+            constraints = None
+    else:
+        constraints = None
+        
     return predictors, target, constraints
 
    
@@ -311,7 +332,7 @@ def select_model_report(model):
     # 1) Build the initial Markdown (r1)
     # -----------------------------------------------------
     lines = []
-    lines.append("## N-Dimensional Model Result\n")
+    lines.append("# N-Dimensional Model Result\n")
 
     # Predictor and target variables
     predictor_list = [f"X{var+1}" for var in model['predictor_variable']]
@@ -330,9 +351,8 @@ def select_model_report(model):
     )
     lines.append("")
 
-    # Mu’s for target variable
-    lines.append("### Mu’s for Target Variable")
-    lines.append("---")
+    # Mu's for target variable
+    lines.append("## Mu's for Target Variable")
 
     target_dim = f"dim{model['target_idx']}"
     intercept = model['mu'][target_dim][0]
@@ -396,7 +416,7 @@ def select_model_report(model):
     # -----------------------------------------------------
     # 3) A small heading for the "propensity" portion (r2)
     # -----------------------------------------------------
-    r2 = "### Propensity Values\nBelow is the table of propensity with min/max indicated.\n"
+    r2 = "## Propensity Values\n"
 
     # -----------------------------------------------------
     # 4) Annotate the "propensity" DataFrame with min/max
@@ -587,8 +607,7 @@ def target_variable_report(computed):
 
             return s
         
-        s = "## n-Dimensional - Model Selection Result\n"
-        # s += "==========================\n"
+        s = "# N-Dimensional Model Selection Result\n\n"
         if computed is None:
             s += "No model fits the data under these constraints"
             return s
@@ -639,31 +658,35 @@ def target_variable_report(computed):
         return [s]
 
 
-_detailed_tab_counter = 0
-
 def detailed_models_tab(ndim_results):
-    global _detailed_tab_counter
-    _detailed_tab_counter += 1
-    
     st.write("Detailed Models: \n")
-    # st.write(ndim_results)
     computed = ndim_results['computed']
     if computed is None:
         st.warning('No model fits the data')
-    # st.write(f'computed: \n {computed}')
     else:
         number_of_models = len(computed['model'])
-        # Use counter to create truly unique keys
-        key_base = f'detailed_model_{_detailed_tab_counter}'
         
-        model_choice = st.selectbox('Select model to expand',
-                                    options=np.arange(1,number_of_models+1),
-                                    key = f'{key_base}_selectbox')
-        selected_model = computed['model'][model_choice-1]
-        if st.button('Show!', key=f'{key_base}_show_button'):
-            report = select_model_report(selected_model)
-            for r in report:
-                st.write(r)
+        # Use session state with stable key to persist selection
+        session_key = 'ndim_detailed_model_selection'
+        
+        # Initialize session state if it doesn't exist or if number of models changed
+        if session_key not in st.session_state or st.session_state.get('ndim_num_models') != number_of_models:
+            st.session_state[session_key] = 1
+            st.session_state['ndim_num_models'] = number_of_models
+        
+        # Use expanders to display all models - avoids selectbox state issues
+        st.info(f"📊 Found {number_of_models} model(s). Expand any model below to see details.")
+        
+        for model_idx in range(1, number_of_models + 1):
+            selected_model = computed['model'][model_idx - 1]
+            
+            with st.expander(f"Model {model_idx}", expanded=False):
+                report = select_model_report(selected_model)
+                for r in report:
+                    if isinstance(r, pd.DataFrame):
+                        st.dataframe(utils.clean_df(r))
+                    else:
+                        st.markdown(r)
 
 
 
@@ -710,14 +733,8 @@ def model_value_computation(data, propensity_matrix, threshold, tp_reward, tn_re
     }
  
 def compute_and_plot_model_values(data, propensity_matrix, tp_reward, tn_reward, fp_reward, fn_reward):
-    try:
-        tp_reward = float(tp_reward)
-        tn_reward = float(tn_reward)
-        fp_reward = float(fp_reward)
-        fn_reward = float(fn_reward)
-    except:
-        st.warning('All rewards must be numeric')
-        return None
+    # No need to convert - already numeric from number_input
+    pass
     # Compute unique sorted thresholds from the propensity matrix
     thresholds = np.sort(np.unique(propensity_matrix.iloc[:,-1]))
 
@@ -768,13 +785,8 @@ def compute_and_plot_model_values(data, propensity_matrix, tp_reward, tn_reward,
     return fig
 
 def compute_and_plot_model_accuracies(data,  propensity_matrix, tp_reward, tn_reward, fp_reward, fn_reward):
-    try:
-        tp_reward = float(tp_reward)
-        tn_reward = float(tn_reward)
-        fp_reward = float(fp_reward)
-        fn_reward = float(fn_reward)
-    except:
-        return None
+    # No need to convert - already numeric from number_input
+    pass
     
     thresholds = np.sort(np.unique(propensity_matrix.iloc[:,-1]))
     accuracies = []
@@ -833,21 +845,9 @@ def compute_and_plot_model_accuracies(data,  propensity_matrix, tp_reward, tn_re
 
 
 def compute_and_display_results(data, propensity_matrix, tp_reward, tn_reward, fp_reward, fn_reward, threshold):
-    try:
-        tp_reward = float(tp_reward)
-        tn_reward = float(tn_reward)
-        fp_reward = float(fp_reward)
-        fn_reward = float(fn_reward)
-    except:
-        st.warning('All rewards must be numeric')
-        return None
-    try:
-        threshold = float(threshold)
-    except:
-        st.warning('Threshold must be numeric')
-        return None
-    if threshold < 0 or threshold > 1:
-        st.warning('Threshold must be a number between 0 and 1')
+    # No need to convert - already numeric from number_input
+    # Validation is handled by number_input constraints
+    pass
     
     computed = model_value_computation(
         data=data,
@@ -894,115 +894,131 @@ def compute_and_display_results(data, propensity_matrix, tp_reward, tn_reward, f
     return results
 
 
-_model_value_tab_counter = 0
-
 def model_value_tab(ndim_results):
-    global _model_value_tab_counter
-    _model_value_tab_counter += 1
-    
     computed = ndim_results['computed']
     if computed is None:
         st.warning('No model fits the data')
     else:
         number_of_models = len(computed['model'])
-        model_choice = st.selectbox('Select model',
-                                    options=np.arange(1, number_of_models+1),
-                                    key=f'model_value_choice_{_model_value_tab_counter}')
-        selected_model = computed['model'][model_choice-1]
         
-        st.markdown("""
-        <style>
-        .wrapper {
-            background-color: #f0f0f0; /* Light grey background */
-            padding: 10px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+        # Display all models in expanders like the Detailed Models tab
+        # This avoids the selection widget state change issue
+        st.info(f"📊 Found {number_of_models} model(s). Expand any model below to configure and plot.")
+        
+        for model_idx in range(1, number_of_models + 1):
+            selected_model = computed['model'][model_idx - 1]
+            unique_key = f"{ndim_results['name']}_model_{model_idx}"
+            
+            with st.expander(f"Model {model_idx}", expanded=(model_idx == 1)):
+                st.markdown("""
+                <style>
+                .wrapper {
+                    background-color: #f0f0f0; /* Light grey background */
+                    padding: 10px;
+                    border-radius: 10px;
+                    margin-bottom: 20px;
+                }
+                </style>
+                """, unsafe_allow_html=True)
 
-        # Model Value Plot Section
-        with st.container():
-            st.markdown('<div class="wrapper">', unsafe_allow_html=True)
-            st.write("Model Value Plot")
-            st.write("**Reward (O = observed, P = predicted)**")
-
-            col1, col2, col3 = st.columns([1, 1, 1])
-            with col1:
-                st.write("")
-
-            with col2:
-                st.write("P = 1")
-
-            with col3:
-                st.write("P = 2")
-
-            col1, col2, col3 = st.columns([1, 1, 1])
-            with col1:
-                st.write("O = 1")
-
-            with col2:
-                reward_o1_p1 = st.text_input("Reward O1P1", value="1", key=f'o1p1 {ndim_results["name"]}')
-
-            with col3:
-                reward_o1_p2 = st.text_input("Reward O1P2", value="-1", key=f'o1p2 {ndim_results["name"]}')
-
-            col1, col2, col3 = st.columns([1, 1, 1])
-            with col1:
-                st.write("O = 2")
-
-            with col2:
-                reward_o2_p1 = st.text_input("Reward O2P1", value="-1", key=f'o2p1 {ndim_results["name"]}')
-
-            with col3:
-                reward_o2_p2 = st.text_input("Reward O2P2", value="1", key=f'o2p2 {ndim_results["name"]}')
+                # Store plots in session state to persist across reruns
+                plot_key = f'plots_{unique_key}'
+                compute_key = f'compute_{unique_key}'
                 
-
-            if st.button("Plot!", key=f"Plot! {ndim_results['name']}"):
-                model_value_plot = compute_and_plot_model_values(
-                    data = selected_model['data'].iloc[:,selected_model['all_variable']],
-                    propensity_matrix= selected_model['propensity'],
-                    tp_reward=reward_o1_p1,
-                    fn_reward=reward_o1_p2,
-                    fp_reward=reward_o2_p1,
-                    tn_reward=reward_o2_p2
-                )
-                if model_value_plot:
-                    st.plotly_chart(model_value_plot, use_container_width=True)
-                else:
-                    pass
+                if plot_key not in st.session_state:
+                    st.session_state[plot_key] = None
+                if compute_key not in st.session_state:
+                    st.session_state[compute_key] = None
                 
-                model_accuracy_plot = compute_and_plot_model_accuracies(
-                    data = selected_model['data'].iloc[:,selected_model['all_variable']],
-                    propensity_matrix= selected_model['propensity'],
-                    tp_reward=reward_o1_p1,
-                    fn_reward=reward_o1_p2,
-                    fp_reward=reward_o2_p1,
-                    tn_reward=reward_o2_p2
-                )
-                if model_accuracy_plot:
-                    st.plotly_chart(model_accuracy_plot, use_container_width=True)
-                else:
-                    pass
-            st.markdown('</div>', unsafe_allow_html=True)
+                # Model Value Plot Section
+                with st.container():
+                    st.markdown('<div class="wrapper">', unsafe_allow_html=True)
+                    st.write("Model Value Plot")
+                    st.write("**Reward (O = observed, P = predicted)**")
 
-            # Sensitivity and Specificity Section
-            st.markdown('<div class="wrapper">', unsafe_allow_html=True)
-            st.write("Sensitivity and Specificity")
-            propensity_threshold = st.text_input("Propensity Threshold", key = f'propensity threshold {ndim_results["name"]}')
-            if st.button("Compute!",key = f"Compute! {ndim_results['name']}"):
-                results = compute_and_display_results(
-                    data = selected_model['data'].iloc[:,selected_model['all_variable']],
-                    propensity_matrix= selected_model['propensity'],
-                    tp_reward=reward_o1_p1,
-                    fn_reward=reward_o1_p2,
-                    fp_reward=reward_o2_p1,
-                    tn_reward=reward_o2_p2,
-                    threshold=propensity_threshold)
-                for result in results:
-                    if isinstance(result, pd.DataFrame):
-                        st.dataframe(result)
-                    else:
-                        st.text(result)
+                    col1, col2, col3 = st.columns([1, 1, 1])
+                    with col1:
+                        st.write("")
+
+                    with col2:
+                        st.write("P = 1")
+
+                    with col3:
+                        st.write("P = 2")
+
+                    col1, col2, col3 = st.columns([1, 1, 1])
+                    with col1:
+                        st.write("O = 1")
+
+                    with col2:
+                        reward_o1_p1 = st.number_input("Reward O1P1", value=1.0, step=0.1, key=f'o1p1 {unique_key}')
+
+                    with col3:
+                        reward_o1_p2 = st.number_input("Reward O1P2", value=-1.0, step=0.1, key=f'o1p2 {unique_key}')
+
+                    col1, col2, col3 = st.columns([1, 1, 1])
+                    with col1:
+                        st.write("O = 2")
+
+                    with col2:
+                        reward_o2_p1 = st.number_input("Reward O2P1", value=-1.0, step=0.1, key=f'o2p1 {unique_key}')
+
+                    with col3:
+                        reward_o2_p2 = st.number_input("Reward O2P2", value=1.0, step=0.1, key=f'o2p2 {unique_key}')
                         
-            st.markdown('</div>', unsafe_allow_html=True)
+
+                    if st.button("Plot!", key=f"Plot! {unique_key}"):
+                        model_value_plot = compute_and_plot_model_values(
+                            data = selected_model['data'].iloc[:,selected_model['all_variable']],
+                            propensity_matrix= selected_model['propensity'],
+                            tp_reward=reward_o1_p1,
+                            fn_reward=reward_o1_p2,
+                            fp_reward=reward_o2_p1,
+                            tn_reward=reward_o2_p2
+                        )
+                        model_accuracy_plot = compute_and_plot_model_accuracies(
+                            data = selected_model['data'].iloc[:,selected_model['all_variable']],
+                            propensity_matrix= selected_model['propensity'],
+                            tp_reward=reward_o1_p1,
+                            fn_reward=reward_o1_p2,
+                            fp_reward=reward_o2_p1,
+                            tn_reward=reward_o2_p2
+                        )
+                        # Store in session state
+                        st.session_state[plot_key] = (model_value_plot, model_accuracy_plot)
+                    
+                    # Display plots from session state
+                    if st.session_state[plot_key] is not None:
+                        model_value_plot, model_accuracy_plot = st.session_state[plot_key]
+                        if model_value_plot:
+                            st.plotly_chart(model_value_plot, use_container_width=True)
+                        if model_accuracy_plot:
+                            st.plotly_chart(model_accuracy_plot, use_container_width=True)
+                            
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+                    # Sensitivity and Specificity Section
+                    st.markdown('<div class="wrapper">', unsafe_allow_html=True)
+                    st.write("Sensitivity and Specificity")
+                    propensity_threshold = st.number_input("Propensity Threshold", min_value=0.0, max_value=1.0, value=0.5, step=0.01, key = f'propensity threshold {unique_key}')
+                    if st.button("Compute!",key = f"Compute! {unique_key}"):
+                        results = compute_and_display_results(
+                            data = selected_model['data'].iloc[:,selected_model['all_variable']],
+                            propensity_matrix= selected_model['propensity'],
+                            tp_reward=reward_o1_p1,
+                            fn_reward=reward_o1_p2,
+                            fp_reward=reward_o2_p1,
+                            tn_reward=reward_o2_p2,
+                            threshold=propensity_threshold)
+                        # Store in session state
+                        st.session_state[compute_key] = results
+                    
+                    # Display results from session state
+                    if st.session_state[compute_key] is not None:
+                        for result in st.session_state[compute_key]:
+                            if isinstance(result, pd.DataFrame):
+                                st.dataframe(result)
+                            else:
+                                st.text(result)
+                                
+                    st.markdown('</div>', unsafe_allow_html=True)

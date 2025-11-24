@@ -317,15 +317,14 @@ def m_model_report(result):
     report = []
     original_contingency_table = result['observed']
     # Add a title and section headings as strings
-    report.append("M Model Result")
-    report.append("==============")
-    report.append("Observed Data Matrix")
+    report.append("# M Model Result\n")
+    report.append("## Observed Data Matrix")
     
     # Add observed data matrix as a dataframe
     report.append(pd.DataFrame(original_contingency_table))
 
     # Add expected data matrix section
-    report.append("Expected Data Matrix")
+    report.append("## Expected Data Matrix")
     report.append(pd.DataFrame(result['expected']).round(2))
 
     # Add TAU and model statistics as strings
@@ -333,38 +332,37 @@ def m_model_report(result):
     report.append(f"X-Square= {result['chi_sq_stat']:.2f}  L-Square= {result['l_sq_stat']:.2f}  D.O.F.= {result['d_o_f']}  p-value= {result['p_value']:.4f}")
 
     # Parameter estimates as strings
-    report.append("Parameter Estimates")
-    report.append("-------------------")
+    report.append("## Parameter Estimates")
     report.append(f"Delta: {result['delta']:.4f}")
     report.append("Phi:")
     for i, phi_value in enumerate(result['phi']):
         report.append(f"Phi[{i+1}] = {phi_value:.4f}")
 
     # Add predator and prey tables as dataframes
-    report.append("Predator Table (1 is very dangerous, 0 is not)")
+    report.append("## Predator Table (1 is very dangerous, 0 is not)")
     report.append(pd.DataFrame(result['predator_table']).round(2))
 
-    report.append("Prey Table (1 is very weak, 0 is not)")
+    report.append("## Prey Table (1 is very weak, 0 is not)")
     report.append(pd.DataFrame(result['prey_table']).round(2))
 
     # Add measures like TRL, TAL, BRL, and BRA as strings
-    report.append("Measures")
+    report.append("## Measures")
     report.append(f"TRL = {result['trl']:.4f}   TAL = {result['tal']:.4f}")
     report.append(f"BRL: {' '.join([str(round(val, 2)) for val in result['brl']])}")
     report.append(f"BRA: {' '.join([str(round(val, 2)) for val in result['bra']])}")
 
-    report.append("Significance Matrix")
+    report.append("## Significance Matrix")
     significance_matrix = build_significance_display(result['phi'], result['significance_table'])
     report.append(significance_matrix)
     # Model diagnostics as strings
-    report.append("Model Diagnostics")
+    report.append("## Model Diagnostics")
     if result['model_is_fit']:
         report.append("Model fits the observed data.")
     else:
         report.append("Model does not fit the observed data.")
 
     # Standardized residuals and significant residuals as dataframes
-    report.append("Standardized Residuals")
+    report.append("## Standardized Residuals")
     report.append(pd.DataFrame(result['std_residuals']))
 
     report.append(f"Number of significant residuals = {result['num_sig_residuals']}")
@@ -551,15 +549,14 @@ def q_model_report(result):
     original_contingency_table = result['observed']
 
     # Add a title and section headings as strings
-    report.append("Q Model Result")
-    report.append("==============")
-    report.append("Observed Data Matrix")
+    report.append("# Q Model Result\n")
+    report.append("## Observed Data Matrix")
     
     # Add observed data matrix as a dataframe
     report.append(pd.DataFrame(original_contingency_table))
 
     # Add expected data matrix section
-    report.append("Expected Data Matrix")
+    report.append("## Expected Data Matrix")
     report.append(pd.DataFrame(result['expected']).round(2))
 
     # Add TAU and model statistics as strings
@@ -567,38 +564,37 @@ def q_model_report(result):
     report.append(f"X-Square= {result['chi_sq_stat']:.2f}  L-Square= {result['l_sq_stat']:.2f}  D.O.F.= {result['d_o_f']}  p-value= {result['p_value']:.4f}")
 
     # Parameter estimates as strings
-    report.append("Parameter Estimates")
-    report.append("-------------------")
+    report.append("## Parameter Estimates")
     report.append("Phi:")
     for i, phi_value in enumerate(result['phi']):
         report.append(f"Phi[{i+1}] = {phi_value:.4f}")
 
     # Add predator and prey tables as dataframes
-    report.append("Predator Table (1 is very dangerous, 0 is not)")
+    report.append("## Predator Table (1 is very dangerous, 0 is not)")
     report.append(pd.DataFrame(result['predator_table']).round(2))
 
-    report.append("Prey Table (1 is very weak, 0 is not)")
+    report.append("## Prey Table (1 is very weak, 0 is not)")
     report.append(pd.DataFrame(result['prey_table']).round(2))
 
     # Add measures like TRL, TAL, BRL, and BRA as strings
-    report.append("Measures")
+    report.append("## Measures")
     report.append(f"TRL = {result['trl']:.4f}   TAL = {result['tal']:.4f}")
     report.append(f"BRL: {' '.join([str(round(val, 2)) for val in result['brl']])}")
     report.append(f"BRA: {' '.join([str(round(val, 2)) for val in result['bra']])}")
 
-    report.append("Significance Matrix")
+    report.append("## Significance Matrix")
     significance_matrix = build_significance_display(result['phi'], result['significance_table'])
     report.append(significance_matrix)
 
     # Model diagnostics as strings
-    report.append("Model Diagnostics")
+    report.append("## Model Diagnostics")
     if result['model_is_fit']:
         report.append("Model fits the observed data.")
     else:
         report.append("Model does not fit the observed data.")
 
     # Standardized residuals and significant residuals as dataframes
-    report.append("Standardized Residuals")
+    report.append("## Standardized Residuals")
     report.append(pd.DataFrame(result['std_residuals']))
 
     report.append(f"Number of significant residuals = {result['num_sig_residuals']}")
@@ -760,12 +756,14 @@ def compute_explanatory_df():
                 break
 
     if first_purchase_brands is not None and second_purchase_brands is not None:
-        df = st.session_state['raw_data']
+        df = st.session_state['raw_data'].copy()
         brand1 = df.iloc[:, int(st.session_state['loyalty_col_1']) - 1]
         brand2 = df.iloc[:, int(st.session_state['loyalty_col_2']) - 1]
         # Create a new column: if brand1 and brand2 match the conditions, set to 1; else 2.
         new_column = np.where((brand1.isin(first_purchase_brands)) & (brand2.isin(second_purchase_brands)), 1, 2)
-        df['new_column'] = new_column
+        # Name the new column as n_cols+1 (next column number)
+        new_col_name = len(df.columns) + 1
+        df[new_col_name] = new_column
         return df
     return None
 

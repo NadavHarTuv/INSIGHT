@@ -380,8 +380,8 @@ def all_coef_computation(data):
     }
 
 def all_coef_report(computed):
-    report = "#3-Dimensional Model Report \n\n"
-    report = "## List of possible models \n \n"
+    report = "# 3-Dimensional Model Report\n\n"
+    report = "## List of Possible Models\n\n"
     dof_space = 6 
     l_sq_space = 10
     indent = " "*4
@@ -508,21 +508,21 @@ def coef_string(coef):
 def select_coef_report(computed):
     # Section 1: Report Header
     report1 = '# 3-Dimensional Model Report\n\n'
-    report1 += '## Results for the selected model:\n\n'
-    report1 += '### Observed Data Matrix:\n\n' 
+    report1 += '## Results for Selected Model\n\n'
+    report1 += '## Observed Data Matrix\n\n' 
     
     # DataFrame for Observed Data Matrix
     original_df = array_to_dataframe(computed['original'])
     original_df.rename(columns={original_df.columns[-1]: 'count'}, inplace=True)
     
     # Section 2: Expected Data Matrix
-    report2 = '### Expected Data Matrix:\n\n'
+    report2 = '## Expected Data Matrix\n\n'
     expected_df = array_to_dataframe(np.round(computed['model']['expected'], 2))
     expected_df.rename(columns={expected_df.columns[-1]: 'expected count'}, inplace=True)
     
     # Section 3: Model Statistics
     report3 = f"D.O.F = {computed['model']['d_o_f']}    L² = {np.round(computed['model']['pearson_chi2'], 2)}    p-value = {utils.signif(computed['model']['p_value'], 2)}\n"
-    report3 += '\n### Information on selected model\n'
+    report3 += '\n## Information on Selected Model\n'
     report3 += f"**Lambda coefficients of the selected model: Intercept {coef_string(computed['which_x'])}**\n\n"
     
     lambda_coefs = computed['model']['lambda_coef']
@@ -553,12 +553,12 @@ def select_coef_report(computed):
                     report3 += f'{idx + 1} : {val:.4f}\n'
             report3 += '\n'
     
-    report3 += '**Model Diagnostics**\n\n'
+    report3 += '## Model Diagnostics\n\n'
     if computed['model']['model_is_fit']:
         report3 += 'Model fits the observed data\n'
     else:
         report3 += 'Model does not fit the observed data\n\n'
-    report3 += '**Standardized residuals**\n\n'
+    report3 += '## Standardized Residuals\n\n'
     
     # DataFrame for Standardized Residuals
     resid_df = array_to_dataframe(np.round(computed['model']['std_residual'], 2))
@@ -634,20 +634,20 @@ def target_computation(data, target):
 def target_report(computed):
     report1 = ''
     report1 += "# 3-Dimensional Model Result\n\n"
-    report1 += ' ## Results for the selected model: \n\n'
-    report1 += ' ### Observed Data Matrix: \n\n'
+    report1 += '## Results for Selected Model\n\n'
+    report1 += '## Observed Data Matrix\n\n'
     original_df = array_to_dataframe(computed['original'])
     original_df.rename(columns={original_df.columns[-1]: 'count'}, inplace=True)
 
     report2 = '\n'
-    report2 += '### Expected Data Matrix: \n\n'
+    report2 += '## Expected Data Matrix\n\n'
     expected_df = array_to_dataframe(np.round(computed['model']['expected'], 2))
     expected_df.rename(columns={expected_df.columns[-1]: 'expected count'}, inplace=True)
 
     report3 = '\n'
     report3 += f"D.O.F = {computed['model']['d_o_f']}    L² = {np.round(computed['model']['pearson_chi2'], 2)}    p-value = {utils.signif(computed['model']['p_value'], 2)}\n"
     report3 += '\n'
-    report3 += '### Information on selected model \n'
+    report3 += '## Information on Selected Model\n'
     report3 += f"**Lambda coefficients of the selected model: Intercept {coef_string(computed['which_x'])}**\n\n"
     lambda_coefs = computed['model']['lambda_coef']
     for key, value in lambda_coefs.items():
@@ -679,7 +679,7 @@ def target_report(computed):
     # mu
     variable_names = ['X', 'Y', 'Z']
     report3 += f"Target variable: {variable_names[computed['target']]}\n\n"
-    report3 += '### μ\'s for target variable: \n\n'
+    report3 += '## μ\'s for Target Variable\n\n'
     report3 += f'**μ(Intercept):** {np.round(computed["target_mu"][0],3)} \n\n'
     
     # mus of pairs
@@ -690,28 +690,28 @@ def target_report(computed):
             report3 += f"**μ({variable_names[pair[0]]}, {variable_names[pair[1]]}({variable_names[computed['explanatory_variables'][v]]}={i}))** = {np.round(computed['explanatory_mu'][v][i],3)} \n"
         report3 += '\n'
     
-    report3 += '### Odds Matrix'
+    report3 += '## Odds Matrix\n'
     # Index corresponds to first explanatory variable (rows), columns to second (cols)
     odds_df = pd.DataFrame(computed['odd_matrix'],
                            index=[f'{variable_names[computed["explanatory_variables"][0]]}={i+1}' for i in range(computed['odd_matrix'].shape[0])],
                            columns=[f'{variable_names[computed["explanatory_variables"][1]]}={i+1}' for i in range(computed['odd_matrix'].shape[1])])
-    report4 = "### Propensity Matrix \n\n"
+    report4 = "## Propensity Matrix\n\n"
     propensity_df = pd.DataFrame(computed['propensity_matrix'],
                            index=[f'{variable_names[computed["explanatory_variables"][0]]}={i+1}' for i in range(computed['propensity_matrix'].shape[0])],
                            columns=[f'{variable_names[computed["explanatory_variables"][1]]}={i+1}' for i in range(computed['propensity_matrix'].shape[1])])
     
-    report5 = '### Frequency Matrix \n\n'
+    report5 = '## Frequency Matrix\n\n'
     frequency_df = pd.DataFrame(computed['freq_matrix'],
                            index=[f'{variable_names[computed["explanatory_variables"][0]]}={i+1}' for i in range(computed['freq_matrix'].shape[0])],
                            columns=[f'{variable_names[computed["explanatory_variables"][1]]}={i+1}' for i in range(computed['freq_matrix'].shape[1])])
     
-    report6 = '### Model Diagnostics\n\n'
+    report6 = '## Model Diagnostics\n\n'
     if computed['model']['model_is_fit']:
         report6 += 'Model fits the observed data\n\n'
     else:
         report6 += 'Model does not fit the observed data\n\n'
     
-    report6 += '### Standardized residuals \n\n'
+    report6 += '## Standardized Residuals\n\n'
     residual_df = array_to_dataframe(np.round(computed['model']['std_residual'],3))
     residual_df.rename(columns={residual_df.columns[-1]: 'residual'}, inplace=True)
 
@@ -761,14 +761,8 @@ def model_value_computation(data, explanatory_variables, propensity_matrix, thre
     }
 
 def compute_and_plot_model_values(data, explanatory_variables, propensity_matrix, tp_reward, tn_reward, fp_reward, fn_reward):
-    try:
-        tp_reward = float(tp_reward)
-        tn_reward = float(tn_reward)
-        fp_reward = float(fp_reward)
-        fn_reward = float(fn_reward)
-    except:
-        st.warning('All rewards must be numeric')
-        return None
+    # No need to convert - already numeric from number_input
+    pass
     # Compute unique sorted thresholds from the propensity matrix
     thresholds = np.sort(np.unique(propensity_matrix.flatten()))
     
@@ -822,13 +816,8 @@ def compute_and_plot_model_values(data, explanatory_variables, propensity_matrix
 
 
 def compute_and_plot_model_accuracies(data, explanatory_variables, propensity_matrix, tp_reward, tn_reward, fp_reward, fn_reward):
-    try:
-        tp_reward = float(tp_reward)
-        tn_reward = float(tn_reward)
-        fp_reward = float(fp_reward)
-        fn_reward = float(fn_reward)
-    except:
-        return None
+    # No need to convert - already numeric from number_input
+    pass
     
     thresholds = np.sort(np.unique(propensity_matrix.flatten()))
     accuracies = []
@@ -887,21 +876,9 @@ def compute_and_plot_model_accuracies(data, explanatory_variables, propensity_ma
     return fig
 
 def compute_and_display_results(data, explanatory_variables, propensity_matrix, tp_reward, tn_reward, fp_reward, fn_reward, threshold):
-    try:
-        tp_reward = float(tp_reward)
-        tn_reward = float(tn_reward)
-        fp_reward = float(fp_reward)
-        fn_reward = float(fn_reward)
-    except:
-        st.warning('All rewards must be numeric')
-        return None
-    try:
-        threshold = float(threshold)
-    except:
-        st.warning('Threshold must be numeric')
-        return None
-    if threshold < 0 or threshold > 1:
-        st.warning('Threshold must be a number between 0 and 1')
+    # No need to convert - already numeric from number_input
+    # Validation is handled by number_input constraints
+    pass
     
     computed = model_value_computation(
         data=data,
@@ -952,14 +929,10 @@ def compute_and_display_results(data, explanatory_variables, propensity_matrix, 
 
 
 
-def model_value_tab(threedim_result):
-    
-    # Initialize session state for this specific result
+def model_value_tab(threedim_result, result_idx=1):
+    # Session state is initialized in app.py before tabs are created
     result_name = threedim_result["name"]
-    if f'plots_{result_name}' not in st.session_state:
-        st.session_state[f'plots_{result_name}'] = None
-    if f'compute_results_{result_name}' not in st.session_state:
-        st.session_state[f'compute_results_{result_name}'] = None
+    unique_key = f"{result_name}_{result_idx}"
     
     st.markdown("""
     <style>
@@ -993,23 +966,23 @@ def model_value_tab(threedim_result):
             st.write("O = 1")
 
         with col2:
-            reward_o1_p1 = st.text_input("Reward O1P1", value="1", key=f'o1p1 {result_name}')
+            reward_o1_p1 = st.number_input("Reward O1P1", value=1.0, step=0.1, key=f'o1p1 {unique_key}')
 
         with col3:
-            reward_o1_p2 = st.text_input("Reward O1P2", value="-1", key=f'o1p2 {result_name}')
+            reward_o1_p2 = st.number_input("Reward O1P2", value=-1.0, step=0.1, key=f'o1p2 {unique_key}')
 
         col1, col2, col3 = st.columns([1, 1, 1])
         with col1:
             st.write("O = 2")
 
         with col2:
-            reward_o2_p1 = st.text_input("Reward O2P1", value="-1", key=f'o2p1 {result_name}')
+            reward_o2_p1 = st.number_input("Reward O2P1", value=-1.0, step=0.1, key=f'o2p1 {unique_key}')
 
         with col3:
-            reward_o2_p2 = st.text_input("Reward O2P2", value="1", key=f'o2p2 {result_name}')
+            reward_o2_p2 = st.number_input("Reward O2P2", value=1.0, step=0.1, key=f'o2p2 {unique_key}')
             
 
-        if st.button("Plot!", key=f"Plot! {result_name}"):
+        if st.button("Plot!", key=f"Plot! {unique_key}"):
             computed = threedim_result['computed']
             model_value_plot = compute_and_plot_model_values(
                 data = computed['data'],
@@ -1032,14 +1005,14 @@ def model_value_tab(threedim_result):
             )
             
             # Store plots in session state
-            st.session_state[f'plots_{result_name}'] = {
+            st.session_state[f'plots_{unique_key}'] = {
                 'model_value_plot': model_value_plot,
                 'model_accuracy_plot': model_accuracy_plot
             }
         
         # Display plots if they exist in session state
-        if st.session_state[f'plots_{result_name}'] is not None:
-            plots = st.session_state[f'plots_{result_name}']
+        if st.session_state[f'plots_{unique_key}'] is not None:
+            plots = st.session_state[f'plots_{unique_key}']
             if plots['model_value_plot']:
                 st.plotly_chart(plots['model_value_plot'], use_container_width=True)
             if plots['model_accuracy_plot']:
@@ -1050,8 +1023,8 @@ def model_value_tab(threedim_result):
         # Sensitivity and Specificity Section
         st.markdown('<div class="wrapper">', unsafe_allow_html=True)
         st.write("Sensitivity and Specificity")
-        propensity_threshold = st.text_input("Propensity Threshold", key = f'propensity threshold {result_name}')
-        if st.button("Compute!",key = f"Compute! {result_name}"):
+        propensity_threshold = st.number_input("Propensity Threshold", min_value=0.0, max_value=1.0, value=0.5, step=0.01, key = f'propensity threshold {unique_key}')
+        if st.button("Compute!",key = f"Compute! {unique_key}"):
             computed = threedim_result['computed']
             results = compute_and_display_results(
                 data = computed['data'],
@@ -1063,11 +1036,11 @@ def model_value_tab(threedim_result):
                 tn_reward=reward_o2_p2,
                 threshold=propensity_threshold)
             # Store compute results in session state
-            st.session_state[f'compute_results_{result_name}'] = results
+            st.session_state[f'compute_results_{unique_key}'] = results
         
         # Display compute results if they exist in session state
-        if st.session_state[f'compute_results_{result_name}'] is not None:
-            for result in st.session_state[f'compute_results_{result_name}']:
+        if st.session_state[f'compute_results_{unique_key}'] is not None:
+            for result in st.session_state[f'compute_results_{unique_key}']:
                 if isinstance(result, pd.DataFrame):
                     st.dataframe(result)
                 else:

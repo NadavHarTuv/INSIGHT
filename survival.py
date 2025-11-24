@@ -100,8 +100,7 @@ def homogeneous_report(result, first_stage_idx, test_portion=None):
     num_stage = len(result['observed'])
 
     # Initial text
-    s1 = "Homogeneous Model Result\n"
-    s1 += "========================\n\n"
+    s1 = "# Homogeneous Model Result\n\n"
     if test_portion is not None:
         s1 += f"Test portion= {round(test_portion, 2)}%\n\n"
     
@@ -136,8 +135,7 @@ def homogeneous_report(result, first_stage_idx, test_portion=None):
     
     # Text for Parameter Estimates
     s2 = '\n'
-    s2 += "\nParameter Estimate\n"
-    s2 += "===================\n\n"
+    s2 += "## Parameter Estimates\n\n"
     s2 += '\n' 
     s2 += f"Phi= {np.round(result['phi'], 4)}\n"
     s2 += f"Phi EASD= {np.round(result['phi_easd'][0], 4)}\n"
@@ -147,8 +145,7 @@ def homogeneous_report(result, first_stage_idx, test_portion=None):
     s2 += f"p-value= {utils.signif(result['p_value'], 4)}\n\n"
 
     # Text for Model Diagnostics
-    s2 += "Model Diagnostics\n"
-    s2 += "=================\n"
+    s2 += "## Model Diagnostics\n"
     if result['model_is_fit']:
         s2 += "Model fits the observed data.\n"
     else:
@@ -278,8 +275,7 @@ def acc_dc_report(result, first_stage_idx):
     output = []
     
         # Initial text
-    s = "ACC/DC Model Result\n"
-    s += "========================\n\n"
+    s = "# ACC/DC Model Result\n\n"
     output.append(s)
 
     
@@ -316,7 +312,7 @@ def acc_dc_report(result, first_stage_idx):
     output.append(df)
 
     # Adding textual information
-    s = "\nParameter Estimate\n========================\n\n"
+    s = "\n## Parameter Estimates\n\n"
     s += f"Delta= {result['delta']:.4g}\n"
     s += f"Delta EASD= {utils.signif(result['delta_easd'][0],4)}\n"
     s += f"Phi= {result['phi']:.4g}\n"
@@ -329,7 +325,7 @@ def acc_dc_report(result, first_stage_idx):
     
     output.append(s)
 
-    output.append("Model Diagnostics\n=================\n")
+    output.append("## Model Diagnostics\n")
     if result['model_is_fit']:
         output.append("Model fits the observed data.\n")
     else:
@@ -514,8 +510,7 @@ def oos_training_report(result, training_portion):
 
     # Text portion
     text_part = ""
-    text_part += "Out-of-Sample Training Result\n"
-    text_part += "=============================\n\n"
+    text_part += "# Out-of-Sample Training Result\n\n"
     text_part += f"Training portion= {round(training_portion, 2)}%\n\n"
 
     # Prepare the DataFrame
@@ -559,7 +554,7 @@ def oos_testing_report_grouped(sampling_result, training_fraction, g=None, show_
         groups = [(group[0], group[1]) for group in g]
     
     group_results = []
-    header_text = f"Out-of-Sample Testing Result\nTest portion = {round(test_fraction, 2)}%\n\n"
+    header_text = f"# Out-of-Sample Testing Result\n\nTest portion = {round(test_fraction, 2)}%\n\n"
     
     for (start, end) in groups:
         # Slice the test death counts according to the group. (Adjusting for 1-indexing)

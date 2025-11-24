@@ -143,11 +143,11 @@ import pandas as pd
 def independence_model_report(contingency_table):
     computed = independence_model_computation(contingency_table)
     result1 = ""
-    result1 += '## Independence Model Results\n\n'
-    result1 += '### Observed Data Matrix \n'
+    result1 += '# Independence Model Result\n\n'
+    result1 += '## Observed Data Matrix\n'
     table1 = pd.DataFrame(computed['contingency_table'])
-    result2 = ' \n'
-    result2 += '### Expected Data Matrix\n'
+    result2 = '\n'
+    result2 += '## Expected Data Matrix\n'
     table2 = pd.DataFrame(computed['expected_df'])
     result3 = ' \n'
     result3 += f'τ(Y|X) = {utils.signif(computed["tau_given_x"],3)}, τ(X|Y) = {utils.signif(computed["tau_given_y"],3)}\n'
@@ -157,7 +157,7 @@ def independence_model_report(contingency_table):
         result3 += '**Model does not fit the data**\n\n'
     else:
         result3 += '**Model fits the data**\n\n'
-    result3 += '### Standardized residuals\n'
+    result3 += '## Standardized Residuals\n'
     table3 = utils.signif(pd.DataFrame(computed['residual_matrix']),3)
     result4 = f'Number of significant residuals: {computed["n_residuals"]}\n\n'
     
@@ -196,11 +196,9 @@ def indep_computation2(contingency_table, p_value_threshold=0.05):
 
 ###################################### ANOAS Model
 
-anoas_help_text = "Enter numbers divided by either '-', ',', or ';' \
-                '-' denotes a range (e.g., '1-3' means 1, 2, 3).<br> \
-                ',' separates individual numbers (e.g., '1,2' means 1 and 2).<br> \
-                ';' separates groups (e.g., '1,2-3;4,5' means two groups: [1, 2, 3] and [4, 5]).<br> \
-                Negative numbers are not allowed. No number should be included in multiple groups or segments within the same group."
+# Use the unified help text from utils
+# Note: anoas_help_text kept for backward compatibility but should use utils.RANGE_INPUT_HELP
+anoas_help_text = "Enter ranges using format: '1-3;4,5' (use '-' for ranges, ',' to separate items, ';' to separate groups)"
 
 def collapse_for_anoas(data, groups, orientation):
     is_row = orientation == 'Row'
@@ -357,7 +355,7 @@ def anoas_model_report(contingency_table, groups, orientation):
     
     result1 = ""
     result1 += '# ANOAS Model Result\n\n'
-    result1 += '### Observed Data Matrix \n'
+    result1 += '## Observed Data Matrix\n'
     table1 = pd.DataFrame(computed['contingency_table'])
     result2 = f'τ(Y|X) = {utils.signif(computed["full_computed"]["tau_given_x"],3)}, τ(X|Y) = {utils.signif(computed["full_computed"]["tau_given_y"],3)}\n\n'
     
@@ -381,11 +379,11 @@ def anoas_model_report(contingency_table, groups, orientation):
     else:
         result3 += '**Collapsing does not lead to loss of information**\n\n'
     
-    result3 += '### Mk Collapsed Matrix:\n'
+    result3 += '## Mk Collapsed Matrix\n'
     table3 = pd.DataFrame(computed['collapsed_original'])
-    result4 = '### Expected Collapsed Matrix:\n'
+    result4 = '## Expected Collapsed Matrix\n'
     table4 = pd.DataFrame(computed['collapsed_computed']['expected_df'])
-    result5 = '### Standardized Residuals:\n'
+    result5 = '## Standardized Residuals\n'
     table5 = pd.DataFrame(utils.signif(computed['collapsed_computed']['residual_matrix'],3))
     result6 = f'Number of significant residuals: {computed["collapsed_computed"]["n_residuals"]}\n\n'
     
@@ -396,8 +394,8 @@ def anoas_model_report(contingency_table, groups, orientation):
 
 
 def predictors_proportion_report(contingency_table):
-    result1 = '# Predictor\'s Proportion\n\n'
-    result1 += '### Observed Data Matrix \n'
+    result1 = '# Predictor\'s Proportion Result\n\n'
+    result1 += '## Observed Data Matrix\n'
     table1 = pd.DataFrame(contingency_table)
     # Observed Proportion (Per Row)
     observed_row_proportion = pd.DataFrame(contingency_table.div(contingency_table.sum(axis=1), axis=0))
@@ -558,28 +556,28 @@ def ztest_odds_table(computed, pair, orientation):
 def ztest_report(contingency_table, pair, orientation):
     computed = ztest_computation(contingency_table, pair, orientation)
     
-    result1 = '# Log-odds Z-Test Result \n\n'
+    result1 = '# Log-Odds Z-Test Result\n\n'
     
-    result1 += '### Observed Data Matrix \n'
+    result1 += '## Observed Data Matrix\n'
     table1 = pd.DataFrame(computed['contingency_table'])
     
     # Process expected matrix
     expected_df = pd.DataFrame(computed['indep_computed']['expected_df'])
-    result2 = '### Expected Matrix:\n\n'
+    result2 = '## Expected Matrix\n\n'
     table2 = expected_df
     
     # Process standardized residuals
     residuals_df = pd.DataFrame(computed['indep_computed']['residual_matrix'])
-    result3 = '### Standardized Residuals:\n\n'
+    result3 = '## Standardized Residuals\n\n'
     table3 = residuals_df
     
     # Process odds
     odds_df = pd.DataFrame(ztest_odds_table(computed=computed, pair=pair, orientation=orientation))
-    result4 = '### Odds:\n\n'
+    result4 = '## Odds\n\n'
     table4 = odds_df
     
     # Add Log-Odds Z-Test result
-    result5 = '### Log-Odds Z-Test\n\n'
+    result5 = '## Test Result\n\n'
     result5 += f'Z-value: {computed["z_value"][0]}\n\n'
     
     # Add significance result
@@ -606,16 +604,16 @@ def chisq_test_computation(contingency_table, row_group, col_group):
     
 def chisq_test_report(contingency_table, row_group, col_group):
     computed = chisq_test_computation(contingency_table, row_group, col_group)
-    result1 = '# Collape Chis-Sq Result: \n\n'
+    result1 = '# Collapse Chi-Sq Test Result\n\n'
     
     # Observed matrix (collapsed)
     observed_df = pd.DataFrame(computed['full_computed']['contingency_table'])
-    result1 += '### Observed Data Matrix (Original):\n\n'
+    result1 += '## Observed Data Matrix (Original)\n\n'
     table1 = observed_df
     
     # Expected matrix (collapsed)
     expecteds_df = pd.DataFrame(computed['full_computed']['expected_df'])
-    result2 = '### Expected Data Matrix (Original):\n\n'
+    result2 = '## Expected Data Matrix (Original)\n\n'
     table2 = expecteds_df
     
     # model report
@@ -626,12 +624,12 @@ def chisq_test_report(contingency_table, row_group, col_group):
 
      # Observed matrix (collapsed)
     observed_df_collapsed = pd.DataFrame(computed['collapsed_computed']['contingency_table'])
-    result3 += '### Observed Data Matrix (Collapsed):\n\n'
+    result3 += '## Observed Data Matrix (Collapsed)\n\n'
     table3 = observed_df_collapsed
     
     # Expected matrix (collapsed)
     expected_df_collapsed = pd.DataFrame(computed['collapsed_computed']['expected_df'])
-    result4 = '### Expected Data Matrix (Collapsed):\n\n'
+    result4 = '## Expected Data Matrix (Collapsed)\n\n'
     table4 = expected_df_collapsed
     
     # model report
@@ -640,7 +638,7 @@ def chisq_test_report(contingency_table, row_group, col_group):
     result5 += f'**p-value = {utils.signif(computed["collapsed_computed"]["p_val"],3)}**\n\n'
 
     # Standardized residuals (collapsed)
-    result5 += '### Standardized residuals\n'
+    result5 += '## Standardized Residuals\n'
     table5 = pd.DataFrame(computed['collapsed_computed']['residual_matrix'])
     result6 = f'Number of significant residuals: {computed["collapsed_computed"]["n_residuals"]}\n'
     
