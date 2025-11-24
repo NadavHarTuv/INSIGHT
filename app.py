@@ -142,6 +142,56 @@ if 'comp_results' not in st.session_state:
 if 'tabs' not in st.session_state:
     st.session_state['tabs'] = {}
 
+# Pre-initialize ALL widget session states for model value tabs to prevent tab jumping
+# This must happen BEFORE any tabs are created
+for method_key in ['n-dimensional', '3-dimensional']:
+    if method_key in st.session_state.get('results', {}):
+        for idx, res in enumerate(st.session_state['results'][method_key], start=1):
+            if isinstance(res, dict) and res.get("mode") == "target_variable":
+                if method_key == 'n-dimensional':
+                    result_name = res["model_value"]["name"]
+                    # Initialize widgets for ALL models (not just one)
+                    computed = res.get('detailed', {}).get('computed')
+                    if computed is not None:
+                        number_of_models = len(computed.get('model', []))
+                        for model_idx in range(1, number_of_models + 1):
+                            unique_key = f"{result_name}_model_{model_idx}"
+                            # Number inputs for rewards for each model
+                            if f'o1p1 {unique_key}' not in st.session_state:
+                                st.session_state[f'o1p1 {unique_key}'] = 1.0
+                            if f'o1p2 {unique_key}' not in st.session_state:
+                                st.session_state[f'o1p2 {unique_key}'] = -1.0
+                            if f'o2p1 {unique_key}' not in st.session_state:
+                                st.session_state[f'o2p1 {unique_key}'] = -1.0
+                            if f'o2p2 {unique_key}' not in st.session_state:
+                                st.session_state[f'o2p2 {unique_key}'] = 1.0
+                            if f'propensity threshold {unique_key}' not in st.session_state:
+                                st.session_state[f'propensity threshold {unique_key}'] = 0.5
+                            # Plot and compute results storage for each model
+                            if f'plots_{unique_key}' not in st.session_state:
+                                st.session_state[f'plots_{unique_key}'] = None
+                            if f'compute_{unique_key}' not in st.session_state:
+                                st.session_state[f'compute_{unique_key}'] = None
+                elif method_key == '3-dimensional':
+                    result_name = res["model_value"]["name"]
+                    unique_key = f"{result_name}_{idx}"
+                    # Plot and compute results storage
+                    if f'plots_{unique_key}' not in st.session_state:
+                        st.session_state[f'plots_{unique_key}'] = None
+                    if f'compute_results_{unique_key}' not in st.session_state:
+                        st.session_state[f'compute_results_{unique_key}'] = None
+                    # Number inputs for rewards
+                    if f'o1p1 {unique_key}' not in st.session_state:
+                        st.session_state[f'o1p1 {unique_key}'] = 1.0
+                    if f'o1p2 {unique_key}' not in st.session_state:
+                        st.session_state[f'o1p2 {unique_key}'] = -1.0
+                    if f'o2p1 {unique_key}' not in st.session_state:
+                        st.session_state[f'o2p1 {unique_key}'] = -1.0
+                    if f'o2p2 {unique_key}' not in st.session_state:
+                        st.session_state[f'o2p2 {unique_key}'] = 1.0
+                    if f'propensity threshold {unique_key}' not in st.session_state:
+                        st.session_state[f'propensity threshold {unique_key}'] = 0.5
+
 # Check if method changed and reset transformed_data if needed
 if st.session_state.get('last_method') is not None and st.session_state['last_method'] != selected_method:
     # Method has changed since last run
@@ -194,7 +244,7 @@ if selected_method == 'Independence' and st.session_state.get('transformed_data'
     row_groups_str = st.sidebar.text_input(
         "Row groups to collapse (optional)", 
         value="",
-        help="Enter row groups to collapse (e.g., '1-3;4,5' will collapse rows 1-3 into one row and rows 4,5 into another)",
+        help=utils.RANGE_INPUT_HELP,
         key="collapse_row_groups"
     )
     
@@ -202,7 +252,7 @@ if selected_method == 'Independence' and st.session_state.get('transformed_data'
     col_groups_str = st.sidebar.text_input(
         "Column groups to collapse (optional)", 
         value="",
-        help="Enter column groups to collapse (e.g., '1,3;4-5' will collapse columns 1,3 into one column and columns 4-5 into another)",
+        help=utils.RANGE_INPUT_HELP,
         key="collapse_col_groups"
     )
     
@@ -285,8 +335,8 @@ if selected_method == 'Independence' and st.session_state.get('transformed_data'
     row_groups = None
     col_groups = None
     if selected_model == "Collapse Chi-Sq Test":
-        row_groups_str = st.sidebar.text_input("Row groups", help="Enter row groups (e.g., '1-3;4,5')")
-        col_groups_str = st.sidebar.text_input("Column groups", help="Enter column groups (e.g., '1,2;3-4')")
+        row_groups_str = st.sidebar.text_input("Row groups", help=utils.RANGE_INPUT_HELP)
+        col_groups_str = st.sidebar.text_input("Column groups", help=utils.RANGE_INPUT_HELP)
         
         if row_groups_str.strip():
             row_groups = utils.parse_text_groups(row_groups_str)
@@ -332,6 +382,7 @@ if selected_method == 'Independence' and st.session_state.get('transformed_data'
         st.session_state['results'][key].append(result)
         new_tab_label = f"Result {len(st.session_state['results'][key])}"
         st.session_state['tabs'][key].append(new_tab_label)
+        st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab above.")
 
 elif selected_method == '3-Dimensional' and st.session_state['transformed_data'] is not None:
     key = selected_method.lower().replace(' ', '_')
@@ -368,6 +419,7 @@ elif selected_method == '3-Dimensional' and st.session_state['transformed_data']
                     st.session_state['results'][key].append(computed_result)
                     new_tab_label = f"Result {len(st.session_state['results'][key])}"
                     st.session_state['tabs'][key].append(new_tab_label)
+                    st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab above.")
             
             # ---------------------------
             # B) Select coefficients
@@ -387,6 +439,7 @@ elif selected_method == '3-Dimensional' and st.session_state['transformed_data']
                     st.session_state['results'][key].append(computed_result)
                     new_tab_label = f"Result {len(st.session_state['results'][key])}"
                     st.session_state['tabs'][key].append(new_tab_label)
+                    st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab above.")
 
             # ---------------------------
             # C) Target variable
@@ -424,8 +477,9 @@ elif selected_method == '3-Dimensional' and st.session_state['transformed_data']
                     }
                     
                     st.session_state['results'][key].append(computed_result)
-                    new_tab_label = f"Target variable {len(st.session_state['results'][key])}"
+                    new_tab_label = f"Result {len(st.session_state['results'][key])}"
                     st.session_state['tabs'][key].append(new_tab_label)
+                    st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab above.")
     except Exception as e:
         st.error(f"Error processing data for 3D analysis: {str(e)}")
         import traceback
@@ -479,6 +533,7 @@ elif selected_method == 'N-Dimensional' and st.session_state.get('raw_data') is 
         st.session_state['results'][key].append(computed_result)
         new_tab_label = f"Result {len(st.session_state['results'][key])}"
         st.session_state['tabs'][key].append(new_tab_label)
+        st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab above.")
             
 elif selected_method == 'Survival' and st.session_state.get('transformed_data') is not None:
     key = selected_method.lower().replace(' ','_')
@@ -516,7 +571,7 @@ elif selected_method == 'Survival' and st.session_state.get('transformed_data') 
                 st.session_state['tabs'][key].append(new_tab_label)
                 
     elif selected_model == "Out-of-Sample Splining":
-        training_portion = st.sidebar.text_input("Training portion (in %)", value="50")
+        training_portion = st.sidebar.number_input("Training portion (in %)", min_value=0.0, max_value=100.0, value=50.0, step=1.0)
         reproducible = st.sidebar.checkbox("Reproducible?", value=True)
         if st.sidebar.button("Go Training!"):
             # Compute the training results using the existing functions in survival.py
@@ -525,6 +580,7 @@ elif selected_method == 'Survival' and st.session_state.get('transformed_data') 
             st.session_state['results'][key].append(report)
             new_tab_label = f"Result {len(st.session_state['results'][key])}"
             st.session_state['tabs'][key].append(new_tab_label)
+            st.success(f"✅ Training complete! View results in the '{new_tab_label}' tab above.")
         
         testing_splining_str = st.sidebar.text_input("(Optional) Testing Splining", value="")
         show_plot_testing = st.sidebar.checkbox("Show plot for testing?")
@@ -557,14 +613,16 @@ elif selected_method == 'Survival' and st.session_state.get('transformed_data') 
             st.sidebar.subheader("Explanatory Variable Options")
             # Input for death stages (comma-separated or ranges, e.g. "1,3-5")
             death_stages_str = st.sidebar.text_input(
-                "Enter death stages (range, e.g. 3-5)",
+                "Enter death stages",
                 value="",
+                help=utils.RANGE_INPUT_HELP,
                 key="expl_death_stages"
             )
             # Input for explanatory variable indices as a string (1-based, comma-separated or ranges)
             expl_vars_str = st.sidebar.text_input(
-                "Enter explanatory variable indices (comma-separated or ranges, e.g. 2,4-6)",
+                "Enter explanatory variable indices",
                 value="",
+                help=utils.RANGE_INPUT_HELP,
                 key="expl_vars_str"
             )
             sort_explanatory = st.sidebar.checkbox("Sort explanatory variables?", value=True, key="sort_expl")
@@ -574,7 +632,7 @@ elif selected_method == 'Survival' and st.session_state.get('transformed_data') 
             def parse_death_stages(s):
                 return utils.parse_indices_string(s)
             
-            if st.sidebar.button("Create explanatory data and sort variables", key="go_explanatory"):
+            if st.sidebar.button("Go!", key="go_explanatory"):
                 # Parse death stages and explanatory variable indices.
                 death_stages = parse_death_stages(death_stages_str)
                 expl_indices = utils.parse_indices_string(expl_vars_str)
@@ -611,6 +669,7 @@ elif selected_method == 'Survival' and st.session_state.get('transformed_data') 
                     st.session_state['results'][key].append(new_data)
                     new_tab_label = f"Explanatory Result {len(st.session_state['results'][key])}"
                     st.session_state['tabs'][key].append(new_tab_label)
+                    st.success(f"✅ Data created! View results in the '{new_tab_label}' tab above.")
                     
                     # Display the new data and provide a download button.
                     st.write(new_data)
@@ -647,6 +706,7 @@ elif selected_method == 'Loyalty' and st.session_state.get('transformed_data') i
             st.session_state['results'][key].append(group_result)
             new_tab_label = f"M Model {len(st.session_state['results'][key])}"
             st.session_state['tabs'][key].append(new_tab_label)
+            st.success(f"✅ M Model complete! View results in the '{new_tab_label}' tab above.")
     
     # ---- Model Report Branch ----
     elif selected_loyalty_model == "Q Model":
@@ -662,6 +722,7 @@ elif selected_method == 'Loyalty' and st.session_state.get('transformed_data') i
             st.session_state['results'][key].append(group_result)
             new_tab_label = f"Q Model {len(st.session_state['results'][key])}"
             st.session_state['tabs'][key].append(new_tab_label)
+            st.success(f"✅ Q Model complete! View results in the '{new_tab_label}' tab above.")
     
     # ---- Explanatory Variable Branch ----
     elif selected_loyalty_model == "Explanatory Variable":
@@ -669,8 +730,9 @@ elif selected_method == 'Loyalty' and st.session_state.get('transformed_data') i
         loyalty.explanatory_input()
         
         expl_vars_str = st.sidebar.text_input(
-         "Enter explanatory variable indices (e.g. 2,4-6)",
+         "Enter explanatory variable indices",
          value="",
+         help=utils.RANGE_INPUT_HELP,
          key="loyalty_ex_expl_vars"
     )
         sort_explanatory = st.sidebar.checkbox(
@@ -701,6 +763,7 @@ elif selected_method == 'Loyalty' and st.session_state.get('transformed_data') i
                 st.session_state['results'][key].append(new_df)
                 new_tab_label = f"Explanatory Result {len(st.session_state['results'][key])}"
                 st.session_state['tabs'][key].append(new_tab_label)
+                st.success(f"✅ Data created! View results in the '{new_tab_label}' tab above.")
                 st.write(new_df)
                 csv = new_df.to_csv(index=False, header=False).encode('utf-8')
                 st.download_button("Download New CSV", data=csv, file_name="loyalty_explanatory.csv", mime="text/csv")
@@ -735,6 +798,7 @@ if selected_method == 'Independence' and st.session_state.get('transformed_data'
                 
 elif selected_method == '3-Dimensional' and st.session_state.get('transformed_data') is not None:
     key = selected_method.lower().replace(' ', '_')
+    # Session state already initialized at top of script
     tabs = st.tabs(st.session_state['tabs'][key])
     
     # First tab: show the contingency table
@@ -742,7 +806,7 @@ elif selected_method == '3-Dimensional' and st.session_state.get('transformed_da
         st.subheader("Contingency Table")
         # Optionally show a brief message
         st.write("Data loaded and transformed:")
-        st.dataframe(st.session_state['transformed_data'])
+        st.dataframe(utils.clean_df(st.session_state['transformed_data']))
     
     # Additional tabs for results
     for idx, res in enumerate(st.session_state['results'][key], start=1):
@@ -756,7 +820,8 @@ elif selected_method == '3-Dimensional' and st.session_state.get('transformed_da
                     display_result_items(res["report"])
                 with sub_tabs[1]:
                     # We call your model_value_tab(...) function
-                    threedim.model_value_tab(res["model_value"])
+                    # Pass idx to make keys unique across multiple results
+                    threedim.model_value_tab(res["model_value"], result_idx=idx)
             else:
                 # It's a normal list of text/DF
                 if isinstance(res, list):
@@ -770,12 +835,13 @@ elif selected_method == '3-Dimensional' and st.session_state.get('transformed_da
 
 elif selected_method == 'N-Dimensional' and st.session_state.get('raw_data') is not None:
     key = selected_method.lower().replace(' ', '_')
+    # Session state already initialized at top of script
     tabs = st.tabs(st.session_state['tabs'][key])
     
     # First tab: Display the raw data (or a summary thereof)
     with tabs[0]:
         st.subheader("Data")
-        st.dataframe(data)
+        st.dataframe(utils.clean_df(data))
     
     # Additional tabs: for each computed result
     for idx, res in enumerate(st.session_state['results'][key], start=1):
@@ -799,7 +865,7 @@ elif selected_method=='Survival' and st.session_state['transformed_data'] is not
     
     with tabs[0]:
         st.subheader('Data')
-        st.dataframe(data)
+        st.dataframe(utils.clean_df(data))
         
     group_results = st.session_state['results'][key]
     for idx, result_item in enumerate(st.session_state['results'][key], start=1):
@@ -817,13 +883,13 @@ elif selected_method=='Survival' and st.session_state['transformed_data'] is not
                 with sub_tabs[0]:
                     for item in result_item["homogeneous"]:
                         if isinstance(item, pd.DataFrame):
-                            st.dataframe(item)
+                            st.dataframe(utils.clean_df(item))
                         else:
                             st.write(item)
                 with sub_tabs[1]:
                     for item in result_item["acc_dc"]:
                         if isinstance(item, pd.DataFrame):
-                            st.dataframe(item)
+                            st.dataframe(utils.clean_df(item))
                         else:
                             st.write(item)
                 if "homogeneous_plot" in result_item:
@@ -843,7 +909,7 @@ elif selected_method=='Survival' and st.session_state['transformed_data'] is not
                 if isinstance(result_item, list):
                     for item in result_item:
                         if isinstance(item, pd.DataFrame):
-                            st.dataframe(item)
+                            st.dataframe(utils.clean_df(item))
                         else:
                             st.write(item)
                 else:
@@ -868,7 +934,7 @@ elif selected_method=='Loyalty' and st.session_state['transformed_data'] is not 
                 with sub_tabs[0]:
                     for item in res["report"]:
                         if isinstance(item, pd.DataFrame):
-                            st.dataframe(item)
+                            st.dataframe(utils.clean_df(item))
                         else:
                             st.write(item)
                 with sub_tabs[1]:
@@ -877,7 +943,7 @@ elif selected_method=='Loyalty' and st.session_state['transformed_data'] is not 
             else:
                 # For explanatory variable results (which are DataFrames)
                 if isinstance(res, pd.DataFrame):
-                    st.dataframe(res)
+                    st.dataframe(utils.clean_df(res))
                 else:
                     st.write(res)
 
@@ -911,8 +977,9 @@ elif selected_method == 'Ranking' and st.session_state.get('transformed_data') i
         
         # User input for upper polarity index
         upper_polarity_str = st.sidebar.text_input(
-            "Enter upper polarity index (e.g., '4-7' for levels 4 to 7, or comma-separated numbers)",
+            "Enter upper polarity index",
             value="",
+            help=utils.RANGE_INPUT_HELP,
             key="ranking_upper_polarity"
         )
         
@@ -1008,22 +1075,25 @@ elif selected_method == 'Ranking' and st.session_state.get('transformed_data') i
             
             # Input for brands to consider
             brands_str = st.sidebar.text_input(
-                "Enter brand indices (comma-separated or ranges, e.g. 1,3-5)",
+                "Enter brand indices",
                 value="",
+                help=utils.RANGE_INPUT_HELP,
                 key="ranking_expl_brands"
             )
             
             # Input for satisfaction level range
             ranking_range_str = st.sidebar.text_input(
-                "Enter satisfaction level range (e.g. 4-5 for levels 4 to 5)",
+                "Enter satisfaction level range",
                 value="",
+                help=utils.RANGE_INPUT_HELP,
                 key="ranking_expl_range"
             )
             
             # Input for explanatory variable indices
             expl_vars_str = st.sidebar.text_input(
-                "Enter explanatory variable indices (comma-separated or ranges, e.g. 2,4-6)",
+                "Enter explanatory variable indices",
                 value="",
+                help=utils.RANGE_INPUT_HELP,
                 key="ranking_expl_vars"
             )
             
@@ -1073,7 +1143,6 @@ elif selected_method == 'Ranking' and st.session_state.get('transformed_data') i
                                 sorted_indices = threedim.sort_explanatory_variables(new_data, target_col, [explanatory_vars_list])
                                 # The sorted_indices are the actual explanatory column indices from our list
                                 # Convert these to 1-based user-friendly indices
-                                st.write(f'sorted_indices: {sorted_indices}')
                                 sorted_expl_vars = [index + 1 for index in sorted_indices]
                                 # Display sorted order
                                 sorted_order_str = ", ".join(map(str, sorted_expl_vars))
@@ -1083,6 +1152,7 @@ elif selected_method == 'Ranking' and st.session_state.get('transformed_data') i
                             st.session_state['results'][key].append(new_data)
                             new_tab_label = f"Explanatory Result {len(st.session_state['results'][key])}"
                             st.session_state['tabs'][key].append(new_tab_label)
+                            st.success(f"✅ Data created! View results in the '{new_tab_label}' tab above.")
                             
                             # Display data and provide download option
                             st.write(new_data)
