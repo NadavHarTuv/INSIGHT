@@ -846,7 +846,7 @@ elif selected_method == 'N-Dimensional' and st.session_state.get('raw_data') is 
     # Additional tabs: for each computed result
     for idx, res in enumerate(st.session_state['results'][key], start=1):
         with tabs[idx]:
-            # For target-variable mode, create two sub-tabs: "Output" and "Model Value"
+            # For target-variable mode, create sub-tabs
             if isinstance(res, dict) and res.get("mode") == "target_variable":
                 sub_tabs = st.tabs(["Result",'Detailed Models', "Model Value"])
                 with sub_tabs[0]:

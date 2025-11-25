@@ -901,124 +901,127 @@ def model_value_tab(ndim_results):
     else:
         number_of_models = len(computed['model'])
         
-        # Display all models in expanders like the Detailed Models tab
-        # This avoids the selection widget state change issue
-        st.info(f"📊 Found {number_of_models} model(s). Expand any model below to configure and plot.")
+        # Use stable key based on result name for persistent selection
+        session_key = f'model_value_choice_{ndim_results["name"]}'
         
-        for model_idx in range(1, number_of_models + 1):
-            selected_model = computed['model'][model_idx - 1]
-            unique_key = f"{ndim_results['name']}_model_{model_idx}"
+        st.caption("💡 _Note: Changing model selection or clicking Plot/Compute may briefly navigate away from this tab. Simply return here to view your results - they will be preserved._")
+        
+        model_choice = st.radio('Select model',
+                                options=np.arange(1, number_of_models+1),
+                                horizontal=True,
+                                key=session_key)
+        selected_model = computed['model'][model_choice-1]
+        
+        # Store plots in session state to persist across reruns
+        unique_key = f"{ndim_results['name']}_model_{model_choice}"
+        plot_key = f'plots_{unique_key}'
+        compute_key = f'compute_{unique_key}'
+        
+        if plot_key not in st.session_state:
+            st.session_state[plot_key] = None
+        if compute_key not in st.session_state:
+            st.session_state[compute_key] = None
+        
+        st.markdown("""
+        <style>
+        .wrapper {
+            background-color: #f0f0f0; /* Light grey background */
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # Model Value Plot Section
+        with st.container():
+            st.markdown('<div class="wrapper">', unsafe_allow_html=True)
+            st.write("Model Value Plot")
+            st.write("**Reward (O = observed, P = predicted)**")
+
+            col1, col2, col3 = st.columns([1, 1, 1])
+            with col1:
+                st.write("")
+
+            with col2:
+                st.write("P = 1")
+
+            with col3:
+                st.write("P = 2")
+
+            col1, col2, col3 = st.columns([1, 1, 1])
+            with col1:
+                st.write("O = 1")
+
+            with col2:
+                reward_o1_p1 = st.number_input("Reward O1P1", value=1.0, step=0.1, key=f'o1p1 {unique_key}')
+
+            with col3:
+                reward_o1_p2 = st.number_input("Reward O1P2", value=-1.0, step=0.1, key=f'o1p2 {unique_key}')
+
+            col1, col2, col3 = st.columns([1, 1, 1])
+            with col1:
+                st.write("O = 2")
+
+            with col2:
+                reward_o2_p1 = st.number_input("Reward O2P1", value=-1.0, step=0.1, key=f'o2p1 {unique_key}')
+
+            with col3:
+                reward_o2_p2 = st.number_input("Reward O2P2", value=1.0, step=0.1, key=f'o2p2 {unique_key}')
+                
+
+            if st.button("Plot!", key=f"Plot! {unique_key}"):
+                model_value_plot = compute_and_plot_model_values(
+                    data = selected_model['data'].iloc[:,selected_model['all_variable']],
+                    propensity_matrix= selected_model['propensity'],
+                    tp_reward=reward_o1_p1,
+                    fn_reward=reward_o1_p2,
+                    fp_reward=reward_o2_p1,
+                    tn_reward=reward_o2_p2
+                )
+                model_accuracy_plot = compute_and_plot_model_accuracies(
+                    data = selected_model['data'].iloc[:,selected_model['all_variable']],
+                    propensity_matrix= selected_model['propensity'],
+                    tp_reward=reward_o1_p1,
+                    fn_reward=reward_o1_p2,
+                    fp_reward=reward_o2_p1,
+                    tn_reward=reward_o2_p2
+                )
+                # Store in session state
+                st.session_state[plot_key] = (model_value_plot, model_accuracy_plot)
             
-            with st.expander(f"Model {model_idx}", expanded=(model_idx == 1)):
-                st.markdown("""
-                <style>
-                .wrapper {
-                    background-color: #f0f0f0; /* Light grey background */
-                    padding: 10px;
-                    border-radius: 10px;
-                    margin-bottom: 20px;
-                }
-                </style>
-                """, unsafe_allow_html=True)
+            # Display plots from session state
+            if st.session_state[plot_key] is not None:
+                model_value_plot, model_accuracy_plot = st.session_state[plot_key]
+                if model_value_plot:
+                    st.plotly_chart(model_value_plot, use_container_width=True)
+                if model_accuracy_plot:
+                    st.plotly_chart(model_accuracy_plot, use_container_width=True)
+                    
+            st.markdown('</div>', unsafe_allow_html=True)
 
-                # Store plots in session state to persist across reruns
-                plot_key = f'plots_{unique_key}'
-                compute_key = f'compute_{unique_key}'
-                
-                if plot_key not in st.session_state:
-                    st.session_state[plot_key] = None
-                if compute_key not in st.session_state:
-                    st.session_state[compute_key] = None
-                
-                # Model Value Plot Section
-                with st.container():
-                    st.markdown('<div class="wrapper">', unsafe_allow_html=True)
-                    st.write("Model Value Plot")
-                    st.write("**Reward (O = observed, P = predicted)**")
-
-                    col1, col2, col3 = st.columns([1, 1, 1])
-                    with col1:
-                        st.write("")
-
-                    with col2:
-                        st.write("P = 1")
-
-                    with col3:
-                        st.write("P = 2")
-
-                    col1, col2, col3 = st.columns([1, 1, 1])
-                    with col1:
-                        st.write("O = 1")
-
-                    with col2:
-                        reward_o1_p1 = st.number_input("Reward O1P1", value=1.0, step=0.1, key=f'o1p1 {unique_key}')
-
-                    with col3:
-                        reward_o1_p2 = st.number_input("Reward O1P2", value=-1.0, step=0.1, key=f'o1p2 {unique_key}')
-
-                    col1, col2, col3 = st.columns([1, 1, 1])
-                    with col1:
-                        st.write("O = 2")
-
-                    with col2:
-                        reward_o2_p1 = st.number_input("Reward O2P1", value=-1.0, step=0.1, key=f'o2p1 {unique_key}')
-
-                    with col3:
-                        reward_o2_p2 = st.number_input("Reward O2P2", value=1.0, step=0.1, key=f'o2p2 {unique_key}')
+            # Sensitivity and Specificity Section
+            st.markdown('<div class="wrapper">', unsafe_allow_html=True)
+            st.write("Sensitivity and Specificity")
+            propensity_threshold = st.number_input("Propensity Threshold", min_value=0.0, max_value=1.0, value=0.5, step=0.01, key = f'propensity threshold {unique_key}')
+            if st.button("Compute!",key = f"Compute! {unique_key}"):
+                results = compute_and_display_results(
+                    data = selected_model['data'].iloc[:,selected_model['all_variable']],
+                    propensity_matrix= selected_model['propensity'],
+                    tp_reward=reward_o1_p1,
+                    fn_reward=reward_o1_p2,
+                    fp_reward=reward_o2_p1,
+                    tn_reward=reward_o2_p2,
+                    threshold=propensity_threshold)
+                # Store in session state
+                st.session_state[compute_key] = results
+            
+            # Display results from session state
+            if st.session_state[compute_key] is not None:
+                for result in st.session_state[compute_key]:
+                    if isinstance(result, pd.DataFrame):
+                        st.dataframe(result)
+                    else:
+                        st.text(result)
                         
-
-                    if st.button("Plot!", key=f"Plot! {unique_key}"):
-                        model_value_plot = compute_and_plot_model_values(
-                            data = selected_model['data'].iloc[:,selected_model['all_variable']],
-                            propensity_matrix= selected_model['propensity'],
-                            tp_reward=reward_o1_p1,
-                            fn_reward=reward_o1_p2,
-                            fp_reward=reward_o2_p1,
-                            tn_reward=reward_o2_p2
-                        )
-                        model_accuracy_plot = compute_and_plot_model_accuracies(
-                            data = selected_model['data'].iloc[:,selected_model['all_variable']],
-                            propensity_matrix= selected_model['propensity'],
-                            tp_reward=reward_o1_p1,
-                            fn_reward=reward_o1_p2,
-                            fp_reward=reward_o2_p1,
-                            tn_reward=reward_o2_p2
-                        )
-                        # Store in session state
-                        st.session_state[plot_key] = (model_value_plot, model_accuracy_plot)
-                    
-                    # Display plots from session state
-                    if st.session_state[plot_key] is not None:
-                        model_value_plot, model_accuracy_plot = st.session_state[plot_key]
-                        if model_value_plot:
-                            st.plotly_chart(model_value_plot, use_container_width=True)
-                        if model_accuracy_plot:
-                            st.plotly_chart(model_accuracy_plot, use_container_width=True)
-                            
-                    st.markdown('</div>', unsafe_allow_html=True)
-
-                    # Sensitivity and Specificity Section
-                    st.markdown('<div class="wrapper">', unsafe_allow_html=True)
-                    st.write("Sensitivity and Specificity")
-                    propensity_threshold = st.number_input("Propensity Threshold", min_value=0.0, max_value=1.0, value=0.5, step=0.01, key = f'propensity threshold {unique_key}')
-                    if st.button("Compute!",key = f"Compute! {unique_key}"):
-                        results = compute_and_display_results(
-                            data = selected_model['data'].iloc[:,selected_model['all_variable']],
-                            propensity_matrix= selected_model['propensity'],
-                            tp_reward=reward_o1_p1,
-                            fn_reward=reward_o1_p2,
-                            fp_reward=reward_o2_p1,
-                            tn_reward=reward_o2_p2,
-                            threshold=propensity_threshold)
-                        # Store in session state
-                        st.session_state[compute_key] = results
-                    
-                    # Display results from session state
-                    if st.session_state[compute_key] is not None:
-                        for result in st.session_state[compute_key]:
-                            if isinstance(result, pd.DataFrame):
-                                st.dataframe(result)
-                            else:
-                                st.text(result)
-                                
-                    st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
