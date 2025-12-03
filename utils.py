@@ -101,8 +101,8 @@ def load_data(uploaded_file, analysis_method):
             selected_format = st.sidebar.radio(label='File format',options=file_formats)
             
             if selected_format == 'Rows of subjects':
-                row_column = st.sidebar.selectbox('Which column for rows?', np.arange(1,raw_data.shape[1]), index=None, placeholder='Select column')
-                column_column = st.sidebar.selectbox('Which column for columns?', np.arange(1,raw_data.shape[1]), index=None, placeholder='Select column')
+                row_column = st.sidebar.selectbox('Which column in file for rows?', np.arange(1,raw_data.shape[1]+1), index=None, placeholder='Select column')
+                column_column = st.sidebar.selectbox('Which column in file for columns?', np.arange(1,raw_data.shape[1]+1), index=None, placeholder='Select column')
                 
                 if row_column and column_column:
                     row_column = row_column - 1
@@ -134,7 +134,7 @@ def load_data(uploaded_file, analysis_method):
                         st.sidebar.warning(f'Y must be a number beteween 1 and {raw_data.shape[1]}')
                 except:
                     st.sidebar.warning(f'Y must be an integer')
-            Z = st.sidebar.text_input('Which column for variable Z?', value=None)
+            Z = st.sidebar.text_input('Which column in file for variable Z?', value=None)
             if Z:
                 try:
                     Z_int = int(Z)-1
@@ -169,18 +169,20 @@ def load_data(uploaded_file, analysis_method):
                     
                     counts = raw_data.iloc[:,st.session_state['survival_col']].value_counts()
                     
-                    mapping = {i: f'Stage {i}' for i in range(1, counts.index.max() + 1)}
-                    mapping[-1] = 'Survive'
-
-                    # Map the index of the counts to the new names
-                    counts.index = counts.index.map(mapping)
-
-                    # Convert to DataFrame and rename columns
-                    counts_df = counts.reset_index()
-                    counts_df.columns = ['Stage', 'Count']
-                    survive_row = counts_df[counts_df['Stage'] == 'Survive']
-                    counts_df = counts_df[counts_df['Stage'] != 'Survive']
-                    counts_df = pd.concat([counts_df, survive_row], ignore_index=True)
+                    # Sort by index to get stages in order (1, 2, 3, ..., -1)
+                    # Separate positive stages and -1 (survive)
+                    positive_indices = sorted([i for i in counts.index if i > 0])
+                    
+                    # Build the ordered DataFrame
+                    rows = []
+                    for i in positive_indices:
+                        rows.append({'Stage': f'Stage {i}', 'Count': counts[i]})
+                    
+                    # Add Survive row at the end if -1 exists
+                    if -1 in counts.index:
+                        rows.append({'Stage': 'Survive', 'Count': counts[-1]})
+                    
+                    counts_df = pd.DataFrame(rows)
                     counts_df.index = counts_df['Stage']
                     counts_df = counts_df.drop('Stage', axis=1)
                     return (raw_data, counts_df)
@@ -222,8 +224,8 @@ def load_data(uploaded_file, analysis_method):
             selected_format = st.sidebar.radio(label='File format', options=file_formats)
             
             if selected_format == 'Rows of subjects':
-                brand_col = st.sidebar.selectbox('Which column for brand?', np.arange(1, raw_data.shape[1]), index=None, placeholder='Select column')
-                ranking_col = st.sidebar.selectbox('Which column for ranking?', np.arange(1, raw_data.shape[1]), index=None, placeholder='Select column')
+                brand_col = st.sidebar.selectbox('Which column in file for brand?', np.arange(1, raw_data.shape[1]+1), index=None, placeholder='Select column')
+                ranking_col = st.sidebar.selectbox('Which column in file for ranking?', np.arange(1, raw_data.shape[1]+1), index=None, placeholder='Select column')
                 
                 if brand_col and ranking_col:
                     brand_col = brand_col - 1

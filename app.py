@@ -236,70 +236,66 @@ if selected_method == 'Independence' and st.session_state.get('transformed_data'
     st.session_state['indep_contingency_table'] = data
     
     # ------------------------
-    # Collapse Data Option
+    # Collapse Data Option (collapsible)
     # ------------------------
-    st.sidebar.subheader("Data Collapse Options")
-    
-    # Row groups input
-    row_groups_str = st.sidebar.text_input(
-        "Row groups to collapse (optional)", 
-        value="",
-        help=utils.RANGE_INPUT_HELP,
-        key="collapse_row_groups"
-    )
-    
-    # Column groups input  
-    col_groups_str = st.sidebar.text_input(
-        "Column groups to collapse (optional)", 
-        value="",
-        help=utils.RANGE_INPUT_HELP,
-        key="collapse_col_groups"
-    )
-    
-    # Collapse button
-    if st.sidebar.button("Collapse Data", key="collapse_data_btn"):
-        row_groups = None
-        col_groups = None
+    with st.sidebar.expander("Data Collapse Options", expanded=False):
+        # Row groups input
+        row_groups_str = st.text_input(
+            "Row groups to collapse (optional)", 
+            value="",
+            help=utils.RANGE_INPUT_HELP,
+            key="collapse_row_groups"
+        )
         
-        # Parse row groups if provided
-        if row_groups_str.strip():
-            try:
-                row_groups = utils.parse_text_groups(row_groups_str)
-                if row_groups is None:
-                    st.sidebar.error("Invalid row groups format. Please check the format.")
-            except Exception as e:
-                st.sidebar.error(f"Error parsing row groups: {str(e)}")
-                row_groups = None
+        # Column groups input  
+        col_groups_str = st.text_input(
+            "Column groups to collapse (optional)", 
+            value="",
+            help=utils.RANGE_INPUT_HELP,
+            key="collapse_col_groups"
+        )
         
-        # Parse column groups if provided
-        if col_groups_str.strip():
-            try:
-                col_groups = utils.parse_text_groups(col_groups_str)
-                if col_groups is None:
-                    st.sidebar.error("Invalid column groups format. Please check the format.")
-            except Exception as e:
-                st.sidebar.error(f"Error parsing column groups: {str(e)}")
-                col_groups = None
-        
-        # Perform collapse if at least one group is specified
-        if row_groups is not None or col_groups is not None:
-            try:
-                collapsed_data = utils.collapse_data(data, row_groups, col_groups, as_data_metrix=True)
-                
-                # Update the transformed data in session state 
-                st.session_state['transformed_data'] = collapsed_data
-                st.session_state['indep_contingency_table'] = collapsed_data
-                
-                st.sidebar.success("Data collapsed successfully!")
-            except Exception as e:
-                st.sidebar.error(f"Error collapsing data: {str(e)}")
-                import traceback
-                st.sidebar.code(traceback.format_exc())
-        else:
-            st.sidebar.warning("Please specify at least one group (row or column) to collapse.")
-    
-    
-    st.sidebar.markdown("---")  # Add separator
+        # Collapse button
+        if st.button("Collapse Data", key="collapse_data_btn"):
+            row_groups = None
+            col_groups = None
+            
+            # Parse row groups if provided
+            if row_groups_str.strip():
+                try:
+                    row_groups = utils.parse_text_groups(row_groups_str)
+                    if row_groups is None:
+                        st.error("Invalid row groups format. Please check the format.")
+                except Exception as e:
+                    st.error(f"Error parsing row groups: {str(e)}")
+                    row_groups = None
+            
+            # Parse column groups if provided
+            if col_groups_str.strip():
+                try:
+                    col_groups = utils.parse_text_groups(col_groups_str)
+                    if col_groups is None:
+                        st.error("Invalid column groups format. Please check the format.")
+                except Exception as e:
+                    st.error(f"Error parsing column groups: {str(e)}")
+                    col_groups = None
+            
+            # Perform collapse if at least one group is specified
+            if row_groups is not None or col_groups is not None:
+                try:
+                    collapsed_data = utils.collapse_data(data, row_groups, col_groups, as_data_metrix=True)
+                    
+                    # Update the transformed data in session state 
+                    st.session_state['transformed_data'] = collapsed_data
+                    st.session_state['indep_contingency_table'] = collapsed_data
+                    
+                    st.success("Data collapsed successfully!")
+                except Exception as e:
+                    st.error(f"Error collapsing data: {str(e)}")
+                    import traceback
+                    st.code(traceback.format_exc())
+            else:
+                st.warning("Please specify at least one group (row or column) to collapse.")
     
     selected_model = st.sidebar.selectbox("Select Model", model_names['Independence'])
     
@@ -382,7 +378,7 @@ if selected_method == 'Independence' and st.session_state.get('transformed_data'
         st.session_state['results'][key].append(result)
         new_tab_label = f"Result {len(st.session_state['results'][key])}"
         st.session_state['tabs'][key].append(new_tab_label)
-        st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab above.")
+        st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab below.")
 
 elif selected_method == '3-Dimensional' and st.session_state['transformed_data'] is not None:
     key = selected_method.lower().replace(' ', '_')
@@ -419,7 +415,7 @@ elif selected_method == '3-Dimensional' and st.session_state['transformed_data']
                     st.session_state['results'][key].append(computed_result)
                     new_tab_label = f"Result {len(st.session_state['results'][key])}"
                     st.session_state['tabs'][key].append(new_tab_label)
-                    st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab above.")
+                    st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab below.")
             
             # ---------------------------
             # B) Select coefficients
@@ -439,7 +435,7 @@ elif selected_method == '3-Dimensional' and st.session_state['transformed_data']
                     st.session_state['results'][key].append(computed_result)
                     new_tab_label = f"Result {len(st.session_state['results'][key])}"
                     st.session_state['tabs'][key].append(new_tab_label)
-                    st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab above.")
+                    st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab below.")
 
             # ---------------------------
             # C) Target variable
@@ -479,7 +475,7 @@ elif selected_method == '3-Dimensional' and st.session_state['transformed_data']
                     st.session_state['results'][key].append(computed_result)
                     new_tab_label = f"Result {len(st.session_state['results'][key])}"
                     st.session_state['tabs'][key].append(new_tab_label)
-                    st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab above.")
+                    st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab below.")
     except Exception as e:
         st.error(f"Error processing data for 3D analysis: {str(e)}")
         import traceback
@@ -533,7 +529,7 @@ elif selected_method == 'N-Dimensional' and st.session_state.get('raw_data') is 
         st.session_state['results'][key].append(computed_result)
         new_tab_label = f"Result {len(st.session_state['results'][key])}"
         st.session_state['tabs'][key].append(new_tab_label)
-        st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab above.")
+        st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab below.")
             
 elif selected_method == 'Survival' and st.session_state.get('transformed_data') is not None:
     key = selected_method.lower().replace(' ','_')
@@ -569,6 +565,7 @@ elif selected_method == 'Survival' and st.session_state.get('transformed_data') 
                 start, end = group['group']
                 new_tab_label = f"Stages {start}-{end}"
                 st.session_state['tabs'][key].append(new_tab_label)
+            st.success(f"✅ Analysis complete! View results in the tabs below.")
                 
     elif selected_model == "Out-of-Sample Splining":
         training_portion = st.sidebar.number_input("Training portion (in %)", min_value=0.0, max_value=100.0, value=50.0, step=1.0)
@@ -580,7 +577,7 @@ elif selected_method == 'Survival' and st.session_state.get('transformed_data') 
             st.session_state['results'][key].append(report)
             new_tab_label = f"Result {len(st.session_state['results'][key])}"
             st.session_state['tabs'][key].append(new_tab_label)
-            st.success(f"✅ Training complete! View results in the '{new_tab_label}' tab above.")
+            st.success(f"✅ Training complete! View results in the '{new_tab_label}' tab below.")
         
         testing_splining_str = st.sidebar.text_input("(Optional) Testing Splining", value="")
         show_plot_testing = st.sidebar.checkbox("Show plot for testing?")
@@ -601,6 +598,7 @@ elif selected_method == 'Survival' and st.session_state.get('transformed_data') 
                 start, end = group["group"]
                 new_tab_label = f"Stages {start}-{end} (Test)"
                 st.session_state['tabs'][key].append(new_tab_label)
+            st.success(f"✅ Testing complete! View results in the tabs below.")
     
     elif selected_model == "Explanatory Variable":
         # Use raw_data for this analysis
@@ -669,7 +667,7 @@ elif selected_method == 'Survival' and st.session_state.get('transformed_data') 
                     st.session_state['results'][key].append(new_data)
                     new_tab_label = f"Explanatory Result {len(st.session_state['results'][key])}"
                     st.session_state['tabs'][key].append(new_tab_label)
-                    st.success(f"✅ Data created! View results in the '{new_tab_label}' tab above.")
+                    st.success(f"✅ Data created! View results in the '{new_tab_label}' tab below.")
                     
                     # Display the new data and provide a download button.
                     st.write(new_data)
@@ -706,7 +704,7 @@ elif selected_method == 'Loyalty' and st.session_state.get('transformed_data') i
             st.session_state['results'][key].append(group_result)
             new_tab_label = f"M Model {len(st.session_state['results'][key])}"
             st.session_state['tabs'][key].append(new_tab_label)
-            st.success(f"✅ M Model complete! View results in the '{new_tab_label}' tab above.")
+            st.success(f"✅ M Model complete! View results in the '{new_tab_label}' tab below.")
     
     # ---- Model Report Branch ----
     elif selected_loyalty_model == "Q Model":
@@ -722,7 +720,7 @@ elif selected_method == 'Loyalty' and st.session_state.get('transformed_data') i
             st.session_state['results'][key].append(group_result)
             new_tab_label = f"Q Model {len(st.session_state['results'][key])}"
             st.session_state['tabs'][key].append(new_tab_label)
-            st.success(f"✅ Q Model complete! View results in the '{new_tab_label}' tab above.")
+            st.success(f"✅ Q Model complete! View results in the '{new_tab_label}' tab below.")
     
     # ---- Explanatory Variable Branch ----
     elif selected_loyalty_model == "Explanatory Variable":
@@ -763,7 +761,7 @@ elif selected_method == 'Loyalty' and st.session_state.get('transformed_data') i
                 st.session_state['results'][key].append(new_df)
                 new_tab_label = f"Explanatory Result {len(st.session_state['results'][key])}"
                 st.session_state['tabs'][key].append(new_tab_label)
-                st.success(f"✅ Data created! View results in the '{new_tab_label}' tab above.")
+                st.success(f"✅ Data created! View results in the '{new_tab_label}' tab below.")
                 st.write(new_df)
                 csv = new_df.to_csv(index=False, header=False).encode('utf-8')
                 st.download_button("Download New CSV", data=csv, file_name="loyalty_explanatory.csv", mime="text/csv")
@@ -865,7 +863,13 @@ elif selected_method=='Survival' and st.session_state['transformed_data'] is not
     
     with tabs[0]:
         st.subheader('Data')
-        st.dataframe(utils.clean_df(data))
+        # Clean the data, then rename rows to Stage 1, Stage 2, ..., Survive
+        survival_display = utils.clean_df(data.copy())
+        n_rows = len(survival_display)
+        stage_names = [f'Stage {i}' for i in range(1, n_rows)] + ['Survive']
+        survival_display.index = stage_names
+        survival_display.index.name = 'Stage'
+        st.dataframe(survival_display)
         
     group_results = st.session_state['results'][key]
     for idx, result_item in enumerate(st.session_state['results'][key], start=1):
@@ -1030,7 +1034,7 @@ elif selected_method == 'Ranking' and st.session_state.get('transformed_data') i
                     new_tab_label = f"Exploratory {len(st.session_state['results'][key])}"
                     st.session_state['tabs'][key].append(new_tab_label)
                     
-                    st.success(f"Analysis complete! View results in the '{new_tab_label}' tab.")
+                    st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab below.")
                     
                 elif ranking_model == "Confirmatory":
                     results = ranking.confirmatory_computation(data, upper_polarity_idx, sat_constraint)
@@ -1051,7 +1055,7 @@ elif selected_method == 'Ranking' and st.session_state.get('transformed_data') i
                     new_tab_label = f"Confirmatory {len(st.session_state['results'][key])}"
                     st.session_state['tabs'][key].append(new_tab_label)
                     
-                    st.success(f"Analysis complete! View results in the '{new_tab_label}' tab.")
+                    st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab below.")
                     
             except Exception as e:
                 st.error(f"Error in {ranking_model} analysis: {str(e)}")
@@ -1152,7 +1156,7 @@ elif selected_method == 'Ranking' and st.session_state.get('transformed_data') i
                             st.session_state['results'][key].append(new_data)
                             new_tab_label = f"Explanatory Result {len(st.session_state['results'][key])}"
                             st.session_state['tabs'][key].append(new_tab_label)
-                            st.success(f"✅ Data created! View results in the '{new_tab_label}' tab above.")
+                            st.success(f"✅ Data created! View results in the '{new_tab_label}' tab below.")
                             
                             # Display data and provide download option
                             st.write(new_data)
