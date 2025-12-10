@@ -435,14 +435,15 @@ def ztest_read_pair(contingency_table, orientation):
             return None
         
         # Check the orientation and validate the numbers
+        # Note: User enters 1-based indices, so valid range is 1 to num_rows/num_cols (inclusive)
         if orientation == 'Row':
             num_rows = contingency_table.shape[0]
-            if any(num < 0 or num >= num_rows for num in numbers):
+            if any(num < 1 or num > num_rows for num in numbers):
                 st.sidebar.warning(f"Invalid input: Both numbers must be between 1 and {num_rows}.")
                 return None
         else:
             num_cols = contingency_table.shape[1]
-            if any(num < 0 or num >= num_cols for num in numbers):
+            if any(num < 1 or num > num_cols for num in numbers):
                 st.sidebar.warning(f"Invalid input: Both numbers must be between 1 and {num_cols}.")
                 return None
         return np.array(numbers)-1

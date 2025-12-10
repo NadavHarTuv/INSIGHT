@@ -7,6 +7,7 @@ import ndim
 import survival
 import loyalty
 import ranking
+import spacing
 import utils
 
 st.markdown(
@@ -192,6 +193,25 @@ for method_key in ['n-dimensional', '3-dimensional']:
                     if f'propensity threshold {unique_key}' not in st.session_state:
                         st.session_state[f'propensity threshold {unique_key}'] = 0.5
 
+# Pre-initialize Spacing Models widget session states to prevent tab jumping
+if 'spacing_models' in st.session_state.get('results', {}):
+    for idx, res in enumerate(st.session_state['results']['spacing_models'], start=1):
+        if isinstance(res, dict) and res.get("mode") == "spacing_specific_model":
+            unique_key = f"spacing_or_{idx}"
+            model_result = res.get("result", {})
+            num_row = len(model_result.get('mu', []))
+            num_col = len(model_result.get('nu', []))
+            
+            # Pre-initialize number inputs for odd ratio computation
+            if f"{unique_key}_row1" not in st.session_state:
+                st.session_state[f"{unique_key}_row1"] = 1
+            if f"{unique_key}_row2" not in st.session_state:
+                st.session_state[f"{unique_key}_row2"] = min(2, num_row) if num_row > 1 else 1
+            if f"{unique_key}_col1" not in st.session_state:
+                st.session_state[f"{unique_key}_col1"] = 1
+            if f"{unique_key}_col2" not in st.session_state:
+                st.session_state[f"{unique_key}_col2"] = min(2, num_col) if num_col > 1 else 1
+
 # Check if method changed and reset transformed_data if needed
 if st.session_state.get('last_method') is not None and st.session_state['last_method'] != selected_method:
     # Method has changed since last run
@@ -238,7 +258,7 @@ if selected_method == 'Independence' and st.session_state.get('transformed_data'
     # ------------------------
     # Collapse Data Option (collapsible)
     # ------------------------
-    with st.sidebar.expander("Data Collapse Options", expanded=False):
+    with st.sidebar.expander("Permanent Data Collapsing", expanded=False):
         # Row groups input
         row_groups_str = st.text_input(
             "Row groups to collapse (optional)", 
@@ -1168,7 +1188,6 @@ elif selected_method == 'Ranking' and st.session_state.get('transformed_data') i
                     st.error(f"Error in explanatory analysis: {str(e)}")
                     import traceback
                     st.code(traceback.format_exc())
-                
     
     # Display Ranking results in tabs.
     tabs = st.tabs(st.session_state['tabs'][key])
@@ -1247,3 +1266,327 @@ elif selected_method == 'Ranking' and st.session_state.get('transformed_data') i
             # Create a new tab for this result
             st.session_state['tabs'][key].append(f"Result {idx}")
             st.warning("Tab has been created. Please refresh the page to see it.")
+
+# ----------------------------
+# Spacing Models Analysis Section
+# ----------------------------
+elif selected_method == 'Spacing Models' and st.session_state.get('transformed_data') is not None:
+    key = selected_method.lower().replace(' ', '_')
+    data = st.session_state['transformed_data']
+    
+    # Initialize storage for Spacing Models results and tabs if not already done
+    if key not in st.session_state['results']:
+        st.session_state['results'][key] = []
+    if key not in st.session_state['tabs']:
+        st.session_state['tabs'][key] = ['Data']
+    
+    # Sidebar: Model Name selection
+    spacing_model_name = st.sidebar.selectbox(
+        "Model Name",
+        ["Exponential Spacing", "Canonical Correlation"],
+        key="spacing_model_name"
+    )
+    
+    # Sidebar: Model Type selection
+    spacing_model_type = st.sidebar.selectbox(
+        "Model Type",
+        ["Model Selection", "RC Model", "R Model", "C Model", "U Model"],
+        key="spacing_model_type"
+    )
+    
+    # ------------------------
+    # Permanent Data Collapsing (collapsible)
+    # ------------------------
+    with st.sidebar.expander("Permanent Data Collapsing", expanded=False):
+        # Row groups input
+        row_groups_str = st.text_input(
+            "Row groups to collapse (optional)", 
+            value="",
+            help=utils.RANGE_INPUT_HELP,
+            key="spacing_collapse_row_groups"
+        )
+        
+        # Column groups input  
+        col_groups_str = st.text_input(
+            "Column groups to collapse (optional)", 
+            value="",
+            help=utils.RANGE_INPUT_HELP,
+            key="spacing_collapse_col_groups"
+        )
+        
+        # Collapse button
+        if st.button("Collapse Data", key="spacing_collapse_data_btn"):
+            row_groups = None
+            col_groups = None
+            
+            # Parse row groups if provided
+            if row_groups_str.strip():
+                try:
+                    row_groups = utils.parse_text_groups(row_groups_str)
+                    if row_groups is None:
+                        st.error("Invalid row groups format. Please check the format.")
+                except Exception as e:
+                    st.error(f"Error parsing row groups: {str(e)}")
+                    row_groups = None
+            
+            # Parse column groups if provided
+            if col_groups_str.strip():
+                try:
+                    col_groups = utils.parse_text_groups(col_groups_str)
+                    if col_groups is None:
+                        st.error("Invalid column groups format. Please check the format.")
+                except Exception as e:
+                    st.error(f"Error parsing column groups: {str(e)}")
+                    col_groups = None
+            
+            # Perform collapse if at least one group is specified
+            if row_groups is not None or col_groups is not None:
+                try:
+                    collapsed_data = utils.collapse_data(data, row_groups, col_groups, as_data_metrix=True)
+                    
+                    # Update the transformed data in session state 
+                    st.session_state['transformed_data'] = collapsed_data
+                    
+                    st.success("Data collapsed successfully!")
+                except Exception as e:
+                    st.error(f"Error collapsing data: {str(e)}")
+                    import traceback
+                    st.code(traceback.format_exc())
+            else:
+                st.warning("Please specify at least one group (row or column) to collapse.")
+    
+    # Go button
+    if st.sidebar.button("Go!", key="spacing_go"):
+        try:
+            # Get the current data (may have been collapsed)
+            current_data = st.session_state['transformed_data']
+            num_row = current_data.shape[0]
+            num_col = current_data.shape[1]
+            
+            if spacing_model_type == "Model Selection":
+                # Run model selection
+                selection_result = spacing.model_selection(current_data, spacing_model_name)
+                report = spacing.model_selection_report(selection_result)
+                
+                result_data = {
+                    "mode": "spacing_model_selection",
+                    "report": report,
+                    "selection_result": selection_result
+                }
+                
+                st.session_state['results'][key].append(result_data)
+                new_tab_label = f"Model Selection {len(st.session_state['results'][key])}"
+                st.session_state['tabs'][key].append(new_tab_label)
+                st.success(f"✅ Model Selection complete! View results in the '{new_tab_label}' tab below.")
+                
+            else:
+                # Specific model selected
+                # Determine polynomial degrees based on model type
+                if spacing_model_type == "RC Model":
+                    poly_deg_row = num_row - 1
+                    poly_deg_col = num_col - 1
+                elif spacing_model_type == "R Model":
+                    poly_deg_row = num_row - 1
+                    poly_deg_col = 1
+                elif spacing_model_type == "C Model":
+                    poly_deg_row = 1
+                    poly_deg_col = num_col - 1
+                elif spacing_model_type == "U Model":
+                    poly_deg_row = 1
+                    poly_deg_col = 1
+                else:
+                    poly_deg_row = num_row - 1
+                    poly_deg_col = num_col - 1
+                
+                # Run computation
+                if spacing_model_name == "Exponential Spacing":
+                    result = spacing.exponential_spacing_computation(current_data, poly_deg_row, poly_deg_col)
+                else:
+                    result = spacing.canonical_correlation_computation(current_data, poly_deg_row, poly_deg_col)
+                
+                # Generate report
+                report = spacing.spacing_model_report(result, spacing_model_type, spacing_model_name)
+                
+                result_data = {
+                    "mode": "spacing_specific_model",
+                    "report": report,
+                    "result": result,
+                    "model_type": spacing_model_type,
+                    "model_name": spacing_model_name
+                }
+                
+                st.session_state['results'][key].append(result_data)
+                new_tab_label = f"{spacing_model_type} {len(st.session_state['results'][key])}"
+                st.session_state['tabs'][key].append(new_tab_label)
+                st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab below.")
+                
+        except Exception as e:
+            st.error(f"Error in Spacing Models analysis: {str(e)}")
+            import traceback
+            st.sidebar.code(traceback.format_exc())
+    
+    # Display Spacing Models results in tabs
+    tabs = st.tabs(st.session_state['tabs'][key])
+    
+    with tabs[0]:
+        st.subheader("Data")
+        st.write("Contingency table for analysis:")
+        st.dataframe(utils.clean_df(data))
+    
+    # Additional tabs: Display each Spacing Models result
+    for idx, res in enumerate(st.session_state['results'][key], start=1):
+        with tabs[idx]:
+            if isinstance(res, dict):
+                if res.get("mode") == "spacing_model_selection":
+                    # Display model selection results
+                    display_result_items(res.get("report", []))
+                    
+                elif res.get("mode") == "spacing_specific_model":
+                    # Display specific model results with sub-tabs
+                    model_result = res.get("result", {})
+                    model_name = res.get("model_name", "Exponential Spacing")
+                    
+                    sub_tabs = st.tabs(["Report", "Parameters Plot", "Odd Ratio Computation"])
+                    
+                    with sub_tabs[0]:
+                        display_result_items(res.get("report", []))
+                    
+                    with sub_tabs[1]:
+                        # Plot mu and nu parameters
+                        try:
+                            import matplotlib.pyplot as plt
+                            
+                            fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+                            
+                            # Plot mu values
+                            mu = model_result.get('mu', [])
+                            mu_easd = model_result.get('mu_easd', [])
+                            x_mu = range(1, len(mu) + 1)
+                            
+                            axes[0].plot(x_mu, mu, 'b-o', markersize=8, linewidth=2, label='Mu')
+                            if len(mu_easd) > 0 and not np.all(np.isnan(mu_easd)):
+                                mu_lower = mu - 1.96 * np.nan_to_num(mu_easd, nan=0)
+                                mu_upper = mu + 1.96 * np.nan_to_num(mu_easd, nan=0)
+                                axes[0].fill_between(x_mu, mu_lower, mu_upper, alpha=0.2, color='blue')
+                            axes[0].axhline(y=0, color='gray', linestyle='--', alpha=0.5)
+                            axes[0].set_xlabel('Row Index')
+                            axes[0].set_ylabel('Mu Value')
+                            axes[0].set_title('Row Spacing Parameters (Mu)')
+                            axes[0].grid(True, alpha=0.3)
+                            
+                            # Plot nu values
+                            nu = model_result.get('nu', [])
+                            nu_easd = model_result.get('nu_easd', [])
+                            x_nu = range(1, len(nu) + 1)
+                            
+                            axes[1].plot(x_nu, nu, 'r-o', markersize=8, linewidth=2, label='Nu')
+                            if len(nu_easd) > 0 and not np.all(np.isnan(nu_easd)):
+                                nu_lower = nu - 1.96 * np.nan_to_num(nu_easd, nan=0)
+                                nu_upper = nu + 1.96 * np.nan_to_num(nu_easd, nan=0)
+                                axes[1].fill_between(x_nu, nu_lower, nu_upper, alpha=0.2, color='red')
+                            axes[1].axhline(y=0, color='gray', linestyle='--', alpha=0.5)
+                            axes[1].set_xlabel('Column Index')
+                            axes[1].set_ylabel('Nu Value')
+                            axes[1].set_title('Column Spacing Parameters (Nu)')
+                            axes[1].grid(True, alpha=0.3)
+                            
+                            plt.tight_layout()
+                            st.pyplot(fig)
+                            plt.close(fig)
+                            
+                            # Display phi value
+                            phi = model_result.get('phi', 0)
+                            phi_easd = model_result.get('phi_easd', np.nan)
+                            st.markdown(f"**Association Parameter (Phi):** {phi:.4f}")
+                            if not np.isnan(phi_easd):
+                                st.markdown(f"**Phi E.A.S.D.:** {phi_easd:.4f}")
+                                
+                        except Exception as e:
+                            st.error(f"Error generating plot: {str(e)}")
+                    
+                    with sub_tabs[2]:
+                        # Odd Ratio Computation - dynamic section
+                        st.subheader("Odd Ratio Computation")
+                        st.write("Select two rows and two columns to compute the odd ratio.")
+                        
+                        mu = model_result.get('mu', [])
+                        nu = model_result.get('nu', [])
+                        phi = model_result.get('phi', 0)
+                        num_row = len(mu)
+                        num_col = len(nu)
+                        
+                        # Create unique keys for this result
+                        unique_key = f"spacing_or_{idx}"
+                        
+                        # Ensure session state is initialized (should already be done at top of script)
+                        if f"{unique_key}_row1" not in st.session_state:
+                            st.session_state[f"{unique_key}_row1"] = 1
+                        if f"{unique_key}_row2" not in st.session_state:
+                            st.session_state[f"{unique_key}_row2"] = min(2, num_row) if num_row > 1 else 1
+                        if f"{unique_key}_col1" not in st.session_state:
+                            st.session_state[f"{unique_key}_col1"] = 1
+                        if f"{unique_key}_col2" not in st.session_state:
+                            st.session_state[f"{unique_key}_col2"] = min(2, num_col) if num_col > 1 else 1
+                        
+                        # Input fields in columns - don't pass 'value' when using 'key' with session state
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.markdown("**Rows**")
+                            row1 = st.number_input("Row 1", min_value=1, max_value=num_row, step=1, key=f"{unique_key}_row1")
+                            row2 = st.number_input("Row 2", min_value=1, max_value=num_row, step=1, key=f"{unique_key}_row2")
+                        
+                        with col2:
+                            st.markdown("**Columns**")
+                            col1_val = st.number_input("Column 1", min_value=1, max_value=num_col, step=1, key=f"{unique_key}_col1")
+                            col2_val = st.number_input("Column 2", min_value=1, max_value=num_col, step=1, key=f"{unique_key}_col2")
+                        
+                        # Compute button
+                        if st.button("Compute Odd Ratio", key=f"{unique_key}_compute"):
+                            # Validate inputs
+                            error_msg = None
+                            if row1 == row2:
+                                error_msg = "Row 1 and Row 2 should be different."
+                            elif col1_val == col2_val:
+                                error_msg = "Column 1 and Column 2 should be different."
+                            
+                            if error_msg:
+                                st.error(error_msg)
+                            else:
+                                # Convert to 0-based indices
+                                r1, r2 = int(row1) - 1, int(row2) - 1
+                                c1, c2 = int(col1_val) - 1, int(col2_val) - 1
+                                
+                                # Compute odd ratio based on model type
+                                if model_name == "Exponential Spacing":
+                                    # For Exponential Spacing: OR = exp(phi * (mu[r1] - mu[r2]) * (nu[c1] - nu[c2]))
+                                    odd_ratio = np.exp(phi * (mu[r1] - mu[r2]) * (nu[c1] - nu[c2]))
+                                else:
+                                    # For Canonical Correlation: compute from expected values
+                                    expected = model_result.get('expected', None)
+                                    if expected is not None:
+                                        odd_ratio = (expected[r1, c1] * expected[r2, c2]) / (expected[r1, c2] * expected[r2, c1])
+                                    else:
+                                        odd_ratio = np.nan
+                                
+                                # Store the result in session state
+                                st.session_state[f"{unique_key}_result"] = odd_ratio
+                        
+                        # Display result if available
+                        if f"{unique_key}_result" in st.session_state:
+                            odd_ratio = st.session_state[f"{unique_key}_result"]
+                            st.success(f"**Odd Ratio:** {odd_ratio:.6f}")
+                            
+                            # Interpretation
+                            if odd_ratio > 1:
+                                st.info(f"The odds in row {row1} vs row {row2} are {odd_ratio:.4f} times higher for column {col1_val} compared to column {col2_val}.")
+                            elif odd_ratio < 1:
+                                st.info(f"The odds in row {row1} vs row {row2} are {1/odd_ratio:.4f} times lower for column {col1_val} compared to column {col2_val}.")
+                            else:
+                                st.info("The odds ratio is 1, indicating no association between the selected rows and columns.")
+                else:
+                    # Fallback display
+                    display_result_items(res.get("report", []))
+            else:
+                # Fallback for any other type of result
+                st.write(res)

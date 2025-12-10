@@ -241,6 +241,23 @@ def load_data(uploaded_file, analysis_method):
                 # For contingency table format, ensure numeric data and sort columns
                 contingency_table = raw_data.astype(float)
                 return (raw_data, contingency_table)
+        
+        elif analysis_method == 'Spacing Models':
+            file_formats = ['Rows of subjects', 'Contingency table']
+            selected_format = st.sidebar.radio(label='File format', options=file_formats, key='spacing_file_format')
+            
+            if selected_format == 'Rows of subjects':
+                row_column = st.sidebar.selectbox('Which column in file for rows?', np.arange(1, raw_data.shape[1]+1), index=None, placeholder='Select column', key='spacing_row_col')
+                column_column = st.sidebar.selectbox('Which column in file for columns?', np.arange(1, raw_data.shape[1]+1), index=None, placeholder='Select column', key='spacing_col_col')
+                
+                if row_column and column_column:
+                    row_column = row_column - 1
+                    column_column = column_column - 1
+                    contingency_table = pd.crosstab(raw_data.iloc[:, row_column].astype(int),
+                                                    raw_data.iloc[:, column_column].astype(int))
+                    return (raw_data, contingency_table)
+            else:
+                return (raw_data, raw_data)
                 
             
     return (None, None)
