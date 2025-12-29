@@ -1,7 +1,7 @@
 import pandas as pd
 import utils
 import numpy as np
-from matplotlib import pyplot as plt
+import plotly.graph_objects as go
 from scipy.linalg import solve
 import independence
 import streamlit as st
@@ -604,30 +604,62 @@ def q_model_report(result):
 def bra_brl_plot(bra, brl):
     # Convert BRA and BRL into a DataFrame for plotting
     df = pd.DataFrame({'BRA': bra, 'BRL': brl})
+    df['Brand'] = [f"Brand {i}" for i in range(1, len(bra) + 1)]
 
-    # Create the plot
-    fig, ax = plt.subplots()
+    # Create hover text with detailed information
+    hover_text = [
+        f"<b>{brand}</b><br>BRA: {bra_val:.4f}<br>BRL: {brl_val:.4f}"
+        for brand, bra_val, brl_val in zip(df['Brand'], df['BRA'], df['BRL'])
+    ]
 
-    # Plot the points with a specific style
-    ax.scatter(df['BRA'], df['BRL'], color="#0072B2", s=200, edgecolor='black', facecolor='lightblue')
+    # Create the Plotly figure
+    fig = go.Figure()
 
-    # Label points with their indices with slight offsets
-    for i, (x, y) in enumerate(zip(df['BRA'], df['BRL']), start=1):
-        ax.text(x + 0.01, y, str(i), fontsize=12, ha='center', va='center', color="darkblue", weight='bold')
+    # Add scatter trace
+    fig.add_trace(go.Scatter(
+        x=df['BRA'],
+        y=df['BRL'],
+        mode='markers+text',
+        marker=dict(
+            size=20,
+            color='lightblue',
+            line=dict(color='black', width=2)
+        ),
+        text=[str(i) for i in range(1, len(bra) + 1)],
+        textposition='top center',
+        textfont=dict(size=12, color='darkblue', family='Arial Black'),
+        hovertext=hover_text,
+        hoverinfo='text',
+        name='Brands'
+    ))
 
-    # Add labels and title
-    ax.set_xlabel("BRA", fontsize=14)
-    ax.set_ylabel("BRL", fontsize=14)
-    ax.set_title("Brand Loyalty vs Appeal", fontsize=18, pad=20)
+    # Update layout
+    fig.update_layout(
+        title=dict(
+            text="Brand Loyalty vs Appeal",
+            font=dict(size=18),
+            x=0.5,
+            xanchor='center'
+        ),
+        xaxis=dict(
+            title="BRA",
+            titlefont=dict(size=14),
+            gridcolor='rgba(128, 128, 128, 0.3)',
+            gridwidth=1,
+            showgrid=True
+        ),
+        yaxis=dict(
+            title="BRL",
+            titlefont=dict(size=14),
+            gridcolor='rgba(128, 128, 128, 0.3)',
+            gridwidth=1,
+            showgrid=True
+        ),
+        plot_bgcolor='#f0f0f0',
+        hovermode='closest',
+        showlegend=False
+    )
 
-    # Center the title
-    ax.title.set_position([0.5, 1.05])
-
-    # Improve layout and style
-    ax.grid(True, linestyle='--', alpha=0.6)
-    ax.set_facecolor('#f0f0f0')
-
-    # Return the figure object
     return fig
 
 
@@ -685,10 +717,12 @@ def explanatory_input():
                 st.warning("Brand must be an integer")
             if first_purchase_brands is not None:
                 col_idx = int(st.session_state.get('loyalty_col_1', 1)) - 1
-                for brand in first_purchase_brands:
-                    if brand not in st.session_state['raw_data'].iloc[:, col_idx].unique():
-                        first_purchase_brands = None
-                        st.warning(f'Brand {brand} is not in the data')
+                raw_data = st.session_state.get('raw_data')
+                if raw_data is not None:
+                    for brand in first_purchase_brands:
+                        if brand not in raw_data.iloc[:, col_idx].unique():
+                            first_purchase_brands = None
+                            st.warning(f'Brand {brand} is not in the data')
     col3, col4 = st.sidebar.columns(2)
     with col3:
         second_purchase_with = st.selectbox(
@@ -705,10 +739,12 @@ def explanatory_input():
                 st.warning("Brand must be an integer")
             if second_purchase_brands is not None:
                 col_idx = int(st.session_state.get('loyalty_col_2', 1)) - 1
-                for brand in second_purchase_brands:
-                    if brand not in st.session_state['raw_data'].iloc[:, col_idx].unique():
-                        second_purchase_brands = None
-                        st.warning(f'Brand {brand} is not in the data')
+                raw_data = st.session_state.get('raw_data')
+                if raw_data is not None:
+                    for brand in second_purchase_brands:
+                        if brand not in raw_data.iloc[:, col_idx].unique():
+                            second_purchase_brands = None
+                            st.warning(f'Brand {brand} is not in the data')
                         
     return first_purchase_with, first_purchase_brands, second_purchase_with, second_purchase_brands
 
@@ -737,9 +773,13 @@ def compute_explanatory_df():
         second_purchase_brands = None
 
     # Validate the brand values against the raw data.
+    raw_data = st.session_state.get('raw_data')
+    if raw_data is None:
+        return None
+        
     if first_purchase_brands is not None:
         col_idx = int(st.session_state.get('loyalty_col_1', 1)) - 1
-        unique_vals = st.session_state['raw_data'].iloc[:, col_idx].unique()
+        unique_vals = raw_data.iloc[:, col_idx].unique()
         for brand in first_purchase_brands:
             if brand not in unique_vals:
                 st.warning(f'First purchase: Brand {brand} is not in the data')
@@ -748,7 +788,7 @@ def compute_explanatory_df():
 
     if second_purchase_brands is not None:
         col_idx = int(st.session_state.get('loyalty_col_2', 1)) - 1
-        unique_vals = st.session_state['raw_data'].iloc[:, col_idx].unique()
+        unique_vals = raw_data.iloc[:, col_idx].unique()
         for brand in second_purchase_brands:
             if brand not in unique_vals:
                 st.warning(f'Second purchase: Brand {brand} is not in the data')
@@ -756,9 +796,11 @@ def compute_explanatory_df():
                 break
 
     if first_purchase_brands is not None and second_purchase_brands is not None:
-        df = st.session_state['raw_data'].copy()
-        brand1 = df.iloc[:, int(st.session_state['loyalty_col_1']) - 1]
-        brand2 = df.iloc[:, int(st.session_state['loyalty_col_2']) - 1]
+        df = raw_data.copy()
+        loyalty_col_1 = st.session_state.get('loyalty_col_1', 1)
+        loyalty_col_2 = st.session_state.get('loyalty_col_2', 1)
+        brand1 = df.iloc[:, int(loyalty_col_1) - 1]
+        brand2 = df.iloc[:, int(loyalty_col_2) - 1]
         # Create a new column: if brand1 and brand2 match the conditions, set to 1; else 2.
         new_column = np.where((brand1.isin(first_purchase_brands)) & (brand2.isin(second_purchase_brands)), 1, 2)
         # Name the new column as n_cols+1 (next column number)

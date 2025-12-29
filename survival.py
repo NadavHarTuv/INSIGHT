@@ -5,7 +5,7 @@ import numpy as np
 from scipy.stats import chi2
 import pandas as pd
 from scipy.optimize import minimize
-from matplotlib import pyplot as plt
+import plotly.graph_objects as go
 
 def is_consecutive(lst):
     return len(lst) == (max(lst) - min(lst) + 1)
@@ -386,33 +386,101 @@ def plot_tab(survival_result):
     col1, col2 = st.columns([1,2])
 
     with col2:
-        # Empirical Plot
-        fig_empirical, ax_empirical = plt.subplots(figsize=(10, 6))
-        ax_empirical.plot(data_empirical['stage'], data_empirical['lower'], color='#0072B2', linestyle='--', label='Lower Bound')
-        ax_empirical.plot(data_empirical['stage'], data_empirical['value'], color='#D55E00', label='Survival Frequency')
-        ax_empirical.plot(data_empirical['stage'], data_empirical['upper'], color='#0072B2', linestyle='--', label='Upper Bound')
-        ax_empirical.axhline(probability_value, color='grey', linestyle='-', label=f'Probability = {probability_value}')
-        ax_empirical.set_ylim(0, 1)
-        ax_empirical.set_xlabel("Stage")
-        ax_empirical.set_ylabel("Frequency")
-        ax_empirical.set_title("Empirical Plot", fontsize=16)
-        ax_empirical.legend()
-
-        # Model Plot
-        fig_model, ax_model = plt.subplots(figsize=(10, 6))
-        ax_model.plot(data_model['stage'], data_model['lower'], color='#0072B2', linestyle='--', label='Lower Bound')
-        ax_model.plot(data_model['stage'], data_model['value'], color='#D55E00', label='Model Probability')
-        ax_model.plot(data_model['stage'], data_model['upper'], color='#0072B2', linestyle='--', label='Upper Bound')
-        ax_model.axhline(probability_value, color='grey', linestyle='-', label=f'Probability = {probability_value}')
-        ax_model.set_ylim(0, 1)
-        ax_model.set_xlabel("Stage")
-        ax_model.set_ylabel("Probability")
-        ax_model.set_title("Model Plot", fontsize=16)
-        ax_model.legend()
+        # Empirical Plot with Plotly
+        fig_empirical = go.Figure()
+        
+        # Create hover text for empirical data
+        empirical_hover = [
+            f"<b>Stage {stage}</b><br>Survival Freq: {val:.4f}<br>Lower: {lower:.4f}<br>Upper: {upper:.4f}"
+            for stage, val, lower, upper in zip(data_empirical['stage'], data_empirical['value'], data_empirical['lower'], data_empirical['upper'])
+        ]
+        
+        # Add confidence band (filled area)
+        fig_empirical.add_trace(go.Scatter(
+            x=list(data_empirical['stage']) + list(data_empirical['stage'][::-1]),
+            y=list(data_empirical['upper']) + list(data_empirical['lower'][::-1]),
+            fill='toself',
+            fillcolor='rgba(0, 114, 178, 0.2)',
+            line=dict(color='rgba(0, 114, 178, 0)'),
+            hoverinfo='skip',
+            name='95% CI'
+        ))
+        
+        # Add main line
+        fig_empirical.add_trace(go.Scatter(
+            x=data_empirical['stage'],
+            y=data_empirical['value'],
+            mode='lines+markers',
+            line=dict(color='#D55E00', width=2),
+            marker=dict(size=6),
+            hovertext=empirical_hover,
+            hoverinfo='text',
+            name='Survival Frequency'
+        ))
+        
+        # Add probability line
+        fig_empirical.add_hline(y=probability_value, line_dash="solid", line_color="grey", 
+                               annotation_text=f"Prob = {probability_value}", annotation_position="right")
+        
+        fig_empirical.update_layout(
+            title=dict(text="Empirical Plot", font=dict(size=16)),
+            xaxis_title="Stage",
+            yaxis_title="Frequency",
+            yaxis=dict(range=[0, 1]),
+            hovermode='closest',
+            showlegend=True,
+            legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99)
+        )
+        
+        # Model Plot with Plotly
+        fig_model = go.Figure()
+        
+        # Create hover text for model data
+        model_hover = [
+            f"<b>Stage {stage}</b><br>Model Prob: {val:.4f}<br>Lower: {lower:.4f}<br>Upper: {upper:.4f}"
+            for stage, val, lower, upper in zip(data_model['stage'], data_model['value'], data_model['lower'], data_model['upper'])
+        ]
+        
+        # Add confidence band (filled area)
+        fig_model.add_trace(go.Scatter(
+            x=list(data_model['stage']) + list(data_model['stage'][::-1]),
+            y=list(data_model['upper']) + list(data_model['lower'][::-1]),
+            fill='toself',
+            fillcolor='rgba(0, 114, 178, 0.2)',
+            line=dict(color='rgba(0, 114, 178, 0)'),
+            hoverinfo='skip',
+            name='95% CI'
+        ))
+        
+        # Add main line
+        fig_model.add_trace(go.Scatter(
+            x=data_model['stage'],
+            y=data_model['value'],
+            mode='lines+markers',
+            line=dict(color='#D55E00', width=2),
+            marker=dict(size=6),
+            hovertext=model_hover,
+            hoverinfo='text',
+            name='Model Probability'
+        ))
+        
+        # Add probability line
+        fig_model.add_hline(y=probability_value, line_dash="solid", line_color="grey",
+                          annotation_text=f"Prob = {probability_value}", annotation_position="right")
+        
+        fig_model.update_layout(
+            title=dict(text="Model Plot", font=dict(size=16)),
+            xaxis_title="Stage",
+            yaxis_title="Probability",
+            yaxis=dict(range=[0, 1]),
+            hovermode='closest',
+            showlegend=True,
+            legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99)
+        )
 
         # Display the plots
-        st.pyplot(fig_empirical)
-        st.pyplot(fig_model)
+        st.plotly_chart(fig_empirical, use_container_width=True)
+        st.plotly_chart(fig_model, use_container_width=True)
     
     with col1:
         # Interpolation and Margins Calculation

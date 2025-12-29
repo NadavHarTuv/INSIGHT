@@ -316,34 +316,31 @@ def anoas_model_report_decomposition_table(computed):
     
     # Fill in group data
     for g in range(num_group):
-        # pdb.set_trace()
         temp[g, 0] = f"S{g + 1}"
-        temp[g, 1] = np.round(computed['group_computed'][g]['l_sq'],3)
-        temp[g, 2] = np.round(computed['group_computed'][g]['chi_sq'],3)
+        temp[g, 1] = np.round(computed['group_computed'][g]['l_sq'], 3)
+        temp[g, 2] = np.round(computed['group_computed'][g]['chi_sq'], 3)
         temp[g, 3] = computed['group_computed'][g]['d_o_f']
-        temp[g, 4] = utils.signif(computed['group_computed'][g]['p_val'],3)
+        temp[g, 4] = utils.signif(computed['group_computed'][g]['p_val'], 3)
         temp[g, 5] = f"within {{{', '.join(map(str, computed['non_single_group'][g]+1))}}}"
 
     # Fill in collapsed data
     temp[num_group, 0] = "Mk"
-    temp[num_group, 1] = np.round(computed['collapsed_computed']['l_sq'],3)
-    temp[num_group, 2] = np.round(computed['collapsed_computed']['chi_sq'],3)
+    temp[num_group, 1] = np.round(computed['collapsed_computed']['l_sq'], 3)
+    temp[num_group, 2] = np.round(computed['collapsed_computed']['chi_sq'], 3)
     temp[num_group, 3] = computed['collapsed_computed']['d_o_f']
-    temp[num_group, 4] = utils.signif(computed['collapsed_computed']['p_val'],3)
+    temp[num_group, 4] = utils.signif(computed['collapsed_computed']['p_val'], 3)
     temp[num_group, 5] = "between subsets"
 
     # Fill in full data
     temp[num_group + 1, 0] = "N"
-    temp[num_group + 1, 1] = np.round(computed['full_computed']['l_sq'],3)
-    temp[num_group + 1, 2] = np.round(computed['full_computed']['chi_sq'],3)
+    temp[num_group + 1, 1] = np.round(computed['full_computed']['l_sq'], 3)
+    temp[num_group + 1, 2] = np.round(computed['full_computed']['chi_sq'], 3)
     temp[num_group + 1, 3] = computed['full_computed']['d_o_f']
-    temp[num_group + 1, 4] = utils.signif(computed['full_computed']['p_val'],3)
+    temp[num_group + 1, 4] = utils.signif(computed['full_computed']['p_val'], 3)
     temp[num_group + 1, 5] = "overall"
 
-    # Convert to DataFrame for better readability
+    # Convert to DataFrame - do NOT set Sub as index so it stays as a visible column
     df = pd.DataFrame(temp, columns=["Sub", "L²", "χ²", "DOF", "p-value", "Interpretation"])
-    
-    df.set_index('Sub', inplace=True)
 
     return df
 

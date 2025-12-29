@@ -8,6 +8,7 @@ import survival
 import loyalty
 import ranking
 import spacing
+import scale_conversion
 import utils
 
 st.markdown(
@@ -27,7 +28,7 @@ def display_result_items(result_items):
     if isinstance(result_items, list):
         for item in result_items:
             if isinstance(item, pd.DataFrame):
-                st.dataframe(utils.clean_df(item))
+                st.dataframe(utils.clean_df(item), hide_index=True)
             elif isinstance(item, str):
                 # Check if it's markdown content (contains markdown headers or formatting)
                 if item.strip().startswith('#') or '**' in item or '*' in item:
@@ -96,11 +97,11 @@ def display_analysis_with_plots(result_items, analysis_type, contingency_table, 
         try:
             if analysis_type == 'exploratory':
                 fig = ranking.plot_exploratory_brand_clusters(compute_results)
-                st.pyplot(fig)
+                st.plotly_chart(fig, use_container_width=True)
             else:  # confirmatory
                 # Use the computation results directly
                 fig = ranking.plot_confirmatory_brand_clusters(compute_results)
-                st.pyplot(fig)
+                st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
             st.error(f"Error generating average satisfaction plot: {str(e)}")
             st.exception(e)
@@ -110,11 +111,11 @@ def display_analysis_with_plots(result_items, analysis_type, contingency_table, 
         try:
             if analysis_type == 'exploratory':
                 fig = ranking.plot_exploratory_brand_distribution(compute_results, contingency_table)
-                st.pyplot(fig)
+                st.plotly_chart(fig, use_container_width=True)
             else:  # confirmatory
                 # Use the computation results directly
                 fig = ranking.plot_confirmatory_brand_distribution(compute_results)
-                st.pyplot(fig)
+                st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
             st.error(f"Error generating distribution plot: {str(e)}")
             st.exception(e)
@@ -398,7 +399,7 @@ if selected_method == 'Independence' and st.session_state.get('transformed_data'
         st.session_state['results'][key].append(result)
         new_tab_label = f"Result {len(st.session_state['results'][key])}"
         st.session_state['tabs'][key].append(new_tab_label)
-        st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab below.")
+        st.success(f"✅ Analysis complete! Select '{new_tab_label}' from the dropdown below.")
 
 elif selected_method == '3-Dimensional' and st.session_state['transformed_data'] is not None:
     key = selected_method.lower().replace(' ', '_')
@@ -435,7 +436,7 @@ elif selected_method == '3-Dimensional' and st.session_state['transformed_data']
                     st.session_state['results'][key].append(computed_result)
                     new_tab_label = f"Result {len(st.session_state['results'][key])}"
                     st.session_state['tabs'][key].append(new_tab_label)
-                    st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab below.")
+                    st.success(f"✅ Analysis complete! Select '{new_tab_label}' from the dropdown below.")
             
             # ---------------------------
             # B) Select coefficients
@@ -455,7 +456,7 @@ elif selected_method == '3-Dimensional' and st.session_state['transformed_data']
                     st.session_state['results'][key].append(computed_result)
                     new_tab_label = f"Result {len(st.session_state['results'][key])}"
                     st.session_state['tabs'][key].append(new_tab_label)
-                    st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab below.")
+                    st.success(f"✅ Analysis complete! Select '{new_tab_label}' from the dropdown below.")
 
             # ---------------------------
             # C) Target variable
@@ -495,7 +496,7 @@ elif selected_method == '3-Dimensional' and st.session_state['transformed_data']
                     st.session_state['results'][key].append(computed_result)
                     new_tab_label = f"Result {len(st.session_state['results'][key])}"
                     st.session_state['tabs'][key].append(new_tab_label)
-                    st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab below.")
+                    st.success(f"✅ Analysis complete! Select '{new_tab_label}' from the dropdown below.")
     except Exception as e:
         st.error(f"Error processing data for 3D analysis: {str(e)}")
         import traceback
@@ -549,7 +550,7 @@ elif selected_method == 'N-Dimensional' and st.session_state.get('raw_data') is 
         st.session_state['results'][key].append(computed_result)
         new_tab_label = f"Result {len(st.session_state['results'][key])}"
         st.session_state['tabs'][key].append(new_tab_label)
-        st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab below.")
+        st.success(f"✅ Analysis complete! Select '{new_tab_label}' from the dropdown below.")
             
 elif selected_method == 'Survival' and st.session_state.get('transformed_data') is not None:
     key = selected_method.lower().replace(' ','_')
@@ -585,7 +586,7 @@ elif selected_method == 'Survival' and st.session_state.get('transformed_data') 
                 start, end = group['group']
                 new_tab_label = f"Stages {start}-{end}"
                 st.session_state['tabs'][key].append(new_tab_label)
-            st.success(f"✅ Analysis complete! View results in the tabs below.")
+            st.success(f"✅ Analysis complete! Select results from the dropdown below.")
                 
     elif selected_model == "Out-of-Sample Splining":
         training_portion = st.sidebar.number_input("Training portion (in %)", min_value=0.0, max_value=100.0, value=50.0, step=1.0)
@@ -597,7 +598,7 @@ elif selected_method == 'Survival' and st.session_state.get('transformed_data') 
             st.session_state['results'][key].append(report)
             new_tab_label = f"Result {len(st.session_state['results'][key])}"
             st.session_state['tabs'][key].append(new_tab_label)
-            st.success(f"✅ Training complete! View results in the '{new_tab_label}' tab below.")
+            st.success(f"✅ Training complete! Select '{new_tab_label}' from the dropdown below.")
         
         testing_splining_str = st.sidebar.text_input("(Optional) Testing Splining", value="")
         show_plot_testing = st.sidebar.checkbox("Show plot for testing?")
@@ -618,7 +619,7 @@ elif selected_method == 'Survival' and st.session_state.get('transformed_data') 
                 start, end = group["group"]
                 new_tab_label = f"Stages {start}-{end} (Test)"
                 st.session_state['tabs'][key].append(new_tab_label)
-            st.success(f"✅ Testing complete! View results in the tabs below.")
+            st.success(f"✅ Testing complete! Select results from the dropdown below.")
     
     elif selected_model == "Explanatory Variable":
         # Use raw_data for this analysis
@@ -687,7 +688,7 @@ elif selected_method == 'Survival' and st.session_state.get('transformed_data') 
                     st.session_state['results'][key].append(new_data)
                     new_tab_label = f"Explanatory Result {len(st.session_state['results'][key])}"
                     st.session_state['tabs'][key].append(new_tab_label)
-                    st.success(f"✅ Data created! View results in the '{new_tab_label}' tab below.")
+                    st.success(f"✅ Data created! Select '{new_tab_label}' from the dropdown below.")
                     
                     # Display the new data and provide a download button.
                     st.write(new_data)
@@ -724,7 +725,7 @@ elif selected_method == 'Loyalty' and st.session_state.get('transformed_data') i
             st.session_state['results'][key].append(group_result)
             new_tab_label = f"M Model {len(st.session_state['results'][key])}"
             st.session_state['tabs'][key].append(new_tab_label)
-            st.success(f"✅ M Model complete! View results in the '{new_tab_label}' tab below.")
+            st.success(f"✅ M Model complete! Select '{new_tab_label}' from the dropdown below.")
     
     # ---- Model Report Branch ----
     elif selected_loyalty_model == "Q Model":
@@ -740,7 +741,7 @@ elif selected_method == 'Loyalty' and st.session_state.get('transformed_data') i
             st.session_state['results'][key].append(group_result)
             new_tab_label = f"Q Model {len(st.session_state['results'][key])}"
             st.session_state['tabs'][key].append(new_tab_label)
-            st.success(f"✅ Q Model complete! View results in the '{new_tab_label}' tab below.")
+            st.success(f"✅ Q Model complete! Select '{new_tab_label}' from the dropdown below.")
     
     # ---- Explanatory Variable Branch ----
     elif selected_loyalty_model == "Explanatory Variable":
@@ -781,107 +782,216 @@ elif selected_method == 'Loyalty' and st.session_state.get('transformed_data') i
                 st.session_state['results'][key].append(new_df)
                 new_tab_label = f"Explanatory Result {len(st.session_state['results'][key])}"
                 st.session_state['tabs'][key].append(new_tab_label)
-                st.success(f"✅ Data created! View results in the '{new_tab_label}' tab below.")
+                st.success(f"✅ Data created! Select '{new_tab_label}' from the dropdown below.")
                 st.write(new_df)
                 csv = new_df.to_csv(index=False, header=False).encode('utf-8')
                 st.download_button("Download New CSV", data=csv, file_name="loyalty_explanatory.csv", mime="text/csv")
 
     
     
-# Create tabs if we have a contingency table
+# Create navigation if we have a contingency table
 if selected_method == 'Independence' and st.session_state.get('transformed_data') is not None:
     key='independence'
-    tabs = st.tabs(st.session_state['tabs'][key])
     
-    # First tab: show the contingency table
-    with tabs[0]:
+    # Use selectbox for main navigation to preserve selection across reruns
+    tab_options = st.session_state['tabs'][key]
+    
+    # Initialize tab selection in session state
+    tab_select_key = f"{key}_tab_select"
+    if tab_select_key not in st.session_state:
+        st.session_state[tab_select_key] = tab_options[0] if tab_options else "Data"
+    
+    # Ensure current selection is valid
+    if st.session_state[tab_select_key] not in tab_options:
+        st.session_state[tab_select_key] = tab_options[0] if tab_options else "Data"
+    
+    selected_tab = st.selectbox(
+        "Select Result",
+        tab_options,
+        key=tab_select_key,
+        label_visibility="collapsed"
+    )
+    
+    st.divider()
+    
+    # Find the index of the selected tab
+    selected_idx = tab_options.index(selected_tab) if selected_tab in tab_options else 0
+    
+    # Display content based on selection
+    if selected_idx == 0:
+        # Data tab
         st.subheader("Contingency Table")
-        # Optionally show a brief message
         st.write("Data loaded and transformed:")
-        
         st.dataframe(utils.clean_df(st.session_state['transformed_data']))
-    
-    # Additional tabs: each analysis result
-    for idx, res in enumerate(st.session_state['results'][key], start=1):
-        with tabs[idx]:
-            # st.subheader(st.session_state['tabs'][key][idx])
-            if isinstance(res, list):
-                for item in res:
-                    if isinstance(item, pd.DataFrame):
-                        st.dataframe(utils.clean_df(item))
-                    else:
-                        st.write(item)
-            else:
-                st.write(res)
+    else:
+        # Result tabs
+        res = st.session_state['results'][key][selected_idx - 1]
+        
+        if isinstance(res, list):
+            for item in res:
+                if isinstance(item, pd.DataFrame):
+                    st.dataframe(utils.clean_df(item))
+                else:
+                    st.write(item)
+        else:
+            st.write(res)
                 
 elif selected_method == '3-Dimensional' and st.session_state.get('transformed_data') is not None:
     key = selected_method.lower().replace(' ', '_')
-    # Session state already initialized at top of script
-    tabs = st.tabs(st.session_state['tabs'][key])
     
-    # First tab: show the contingency table
-    with tabs[0]:
+    # Use selectbox for main navigation to preserve selection across reruns
+    tab_options = st.session_state['tabs'][key]
+    
+    # Initialize tab selection in session state
+    tab_select_key = f"{key}_tab_select"
+    if tab_select_key not in st.session_state:
+        st.session_state[tab_select_key] = tab_options[0] if tab_options else "Data"
+    
+    # Ensure current selection is valid
+    if st.session_state[tab_select_key] not in tab_options:
+        st.session_state[tab_select_key] = tab_options[0] if tab_options else "Data"
+    
+    selected_tab = st.selectbox(
+        "Select Result",
+        tab_options,
+        key=tab_select_key,
+        label_visibility="collapsed"
+    )
+    
+    st.divider()
+    
+    # Find the index of the selected tab
+    selected_idx = tab_options.index(selected_tab) if selected_tab in tab_options else 0
+    
+    # Display content based on selection
+    if selected_idx == 0:
+        # Data tab
         st.subheader("Contingency Table")
-        # Optionally show a brief message
         st.write("Data loaded and transformed:")
         st.dataframe(utils.clean_df(st.session_state['transformed_data']))
-    
-    # Additional tabs for results
-    for idx, res in enumerate(st.session_state['results'][key], start=1):
-        with tabs[idx]:
-            # If it's a normal result (list of strings/DF), we just display
-            # If it's the target variable result, we have 2 sub-tabs inside
-            if isinstance(res, dict) and res.get("mode") == "target_variable":
-                # Sub-tabs: "Output" and "Model Value"
-                sub_tabs = st.tabs(["Output", "Model Value"])
-                with sub_tabs[0]:
-                    display_result_items(res["report"])
-                with sub_tabs[1]:
-                    # We call your model_value_tab(...) function
-                    # Pass idx to make keys unique across multiple results
-                    threedim.model_value_tab(res["model_value"], result_idx=idx)
+    else:
+        # Result tabs
+        res = st.session_state['results'][key][selected_idx - 1]
+        
+        if isinstance(res, dict) and res.get("mode") == "target_variable":
+            # Use radio buttons for sub-view selection
+            view_key = f"3dim_view_{selected_idx}"
+            if view_key not in st.session_state:
+                st.session_state[view_key] = "Output"
+            
+            selected_view = st.radio(
+                "Select View",
+                ["Output", "Model Value"],
+                key=view_key,
+                horizontal=True,
+                label_visibility="collapsed"
+            )
+            
+            st.divider()
+            
+            if selected_view == "Output":
+                display_result_items(res["report"])
             else:
-                # It's a normal list of text/DF
-                if isinstance(res, list):
-                    display_result_items(res)
-                else:
-                    # We have more results than tabs - this shouldn't happen but we handle it gracefully
-                    st.error(f"Error: More results than tabs. Missing tab for result {idx}")
-                    # Create a new tab for this result
-                    st.session_state['tabs'][key].append(f"Result {idx}")
-                    st.warning("Tab has been created. Please refresh the page to see it.")
+                threedim.model_value_tab(res["model_value"], result_idx=selected_idx)
+        else:
+            # Normal list of text/DF
+            if isinstance(res, list):
+                display_result_items(res)
+            else:
+                st.write(res)
 
 elif selected_method == 'N-Dimensional' and st.session_state.get('raw_data') is not None:
     key = selected_method.lower().replace(' ', '_')
-    # Session state already initialized at top of script
-    tabs = st.tabs(st.session_state['tabs'][key])
     
-    # First tab: Display the raw data (or a summary thereof)
-    with tabs[0]:
+    # Use selectbox for main navigation to preserve selection across reruns
+    tab_options = st.session_state['tabs'][key]
+    
+    # Initialize tab selection in session state
+    tab_select_key = f"{key}_tab_select"
+    if tab_select_key not in st.session_state:
+        st.session_state[tab_select_key] = tab_options[0] if tab_options else "Data"
+    
+    # Ensure current selection is valid
+    if st.session_state[tab_select_key] not in tab_options:
+        st.session_state[tab_select_key] = tab_options[0] if tab_options else "Data"
+    
+    selected_tab = st.selectbox(
+        "Select Result",
+        tab_options,
+        key=tab_select_key,
+        label_visibility="collapsed"
+    )
+    
+    st.divider()
+    
+    # Find the index of the selected tab
+    selected_idx = tab_options.index(selected_tab) if selected_tab in tab_options else 0
+    
+    # Display content based on selection
+    if selected_idx == 0:
+        # Data tab
         st.subheader("Data")
         st.dataframe(utils.clean_df(data))
-    
-    # Additional tabs: for each computed result
-    for idx, res in enumerate(st.session_state['results'][key], start=1):
-        with tabs[idx]:
-            # For target-variable mode, create sub-tabs
-            if isinstance(res, dict) and res.get("mode") == "target_variable":
-                sub_tabs = st.tabs(["Result",'Detailed Models', "Model Value"])
-                with sub_tabs[0]:
-                    display_result_items(res["report"])
-                with sub_tabs[1]:
-                    ndim.detailed_models_tab(res['detailed'])
-                with sub_tabs[2]:
-                    ndim.model_value_tab(res["model_value"])
+    else:
+        # Result tabs
+        res = st.session_state['results'][key][selected_idx - 1]
+        
+        if isinstance(res, dict) and res.get("mode") == "target_variable":
+            # Use radio buttons for sub-view selection
+            view_key = f"ndim_view_{selected_idx}"
+            if view_key not in st.session_state:
+                st.session_state[view_key] = "Result"
+            
+            selected_view = st.radio(
+                "Select View",
+                ["Result", "Detailed Models", "Model Value"],
+                key=view_key,
+                horizontal=True,
+                label_visibility="collapsed"
+            )
+            
+            st.divider()
+            
+            if selected_view == "Result":
+                display_result_items(res["report"])
+            elif selected_view == "Detailed Models":
+                ndim.detailed_models_tab(res['detailed'])
             else:
-                # For other result formats (if any), simply display them.
-                display_result_items(res)
+                ndim.model_value_tab(res["model_value"])
+        else:
+            # For other result formats (if any), simply display them.
+            display_result_items(res)
 
 elif selected_method=='Survival' and st.session_state['transformed_data'] is not None:
     key = selected_method.lower().replace(' ', '_')
-    tabs = st.tabs(st.session_state['tabs'][key])
     
-    with tabs[0]:
+    # Use selectbox for main navigation to preserve selection across reruns
+    tab_options = st.session_state['tabs'][key]
+    
+    # Initialize tab selection in session state
+    tab_select_key = f"{key}_tab_select"
+    if tab_select_key not in st.session_state:
+        st.session_state[tab_select_key] = tab_options[0] if tab_options else "Data"
+    
+    # Ensure current selection is valid
+    if st.session_state[tab_select_key] not in tab_options:
+        st.session_state[tab_select_key] = tab_options[0] if tab_options else "Data"
+    
+    selected_tab = st.selectbox(
+        "Select Result",
+        tab_options,
+        key=tab_select_key,
+        label_visibility="collapsed"
+    )
+    
+    st.divider()
+    
+    # Find the index of the selected tab
+    selected_idx = tab_options.index(selected_tab) if selected_tab in tab_options else 0
+    
+    # Display content based on selection
+    if selected_idx == 0:
+        # Data tab
         st.subheader('Data')
         # Clean the data, then rename rows to Stage 1, Stage 2, ..., Survive
         survival_display = utils.clean_df(data.copy())
@@ -890,86 +1000,140 @@ elif selected_method=='Survival' and st.session_state['transformed_data'] is not
         survival_display.index = stage_names
         survival_display.index.name = 'Stage'
         st.dataframe(survival_display)
+    else:
+        # Result tabs
+        result_item = st.session_state['results'][key][selected_idx - 1]
+        idx = selected_idx
         
-    group_results = st.session_state['results'][key]
-    for idx, result_item in enumerate(st.session_state['results'][key], start=1):
-        with tabs[idx]:
-            # Check if the result_item is a dictionary with a "group" key
-            if isinstance(result_item, dict) and "group" in result_item:
-                start, end = result_item["group"]
-                st.subheader(f"Stages {start}-{end}")
-                sub_tab_names = ["Homogeneous", "ACC/DC"]
-                if "homogeneous_plot" in result_item:
-                    sub_tab_names.append("Homogeneous Plot")
-                if "acc_dc_plot" in result_item:
-                    sub_tab_names.append("ACC/DC Plot")
-                sub_tabs = st.tabs(sub_tab_names)
-                with sub_tabs[0]:
-                    for item in result_item["homogeneous"]:
-                        if isinstance(item, pd.DataFrame):
-                            st.dataframe(utils.clean_df(item))
-                        else:
-                            st.write(item)
-                with sub_tabs[1]:
-                    for item in result_item["acc_dc"]:
-                        if isinstance(item, pd.DataFrame):
-                            st.dataframe(utils.clean_df(item))
-                        else:
-                            st.write(item)
-                if "homogeneous_plot" in result_item:
-                    with sub_tabs[2]:
-                        for item in result_item["homogeneous_plot"]:
-                            st.write(f"### {item['name']}")
-                            survival.plot_tab(item)
-                if "acc_dc_plot" in result_item:
-                    # Adjust index accordingly if both plot tabs exist.
-                    plot_index = 3 if "homogeneous_plot" in result_item else 2
-                    with sub_tabs[plot_index]:
-                        for item in result_item["acc_dc_plot"]:
-                            st.write(f"### {item['name']}")
-                            survival.plot_tab(item)
+        # Check if the result_item is a dictionary with a "group" key
+        if isinstance(result_item, dict) and "group" in result_item:
+            start, end = result_item["group"]
+            st.subheader(f"Stages {start}-{end}")
+            
+            # Build sub-view options
+            sub_view_options = ["Homogeneous", "ACC/DC"]
+            if "homogeneous_plot" in result_item:
+                sub_view_options.append("Homogeneous Plot")
+            if "acc_dc_plot" in result_item:
+                sub_view_options.append("ACC/DC Plot")
+            
+            # Use radio for sub-view selection
+            view_key = f"survival_view_{idx}"
+            if view_key not in st.session_state:
+                st.session_state[view_key] = "Homogeneous"
+            
+            selected_view = st.radio(
+                "Select View",
+                sub_view_options,
+                key=view_key,
+                horizontal=True,
+                label_visibility="collapsed"
+            )
+            
+            st.divider()
+            
+            if selected_view == "Homogeneous":
+                for item in result_item["homogeneous"]:
+                    if isinstance(item, pd.DataFrame):
+                        st.dataframe(utils.clean_df(item))
+                    else:
+                        st.write(item)
+            elif selected_view == "ACC/DC":
+                for item in result_item["acc_dc"]:
+                    if isinstance(item, pd.DataFrame):
+                        st.dataframe(utils.clean_df(item))
+                    else:
+                        st.write(item)
+            elif selected_view == "Homogeneous Plot" and "homogeneous_plot" in result_item:
+                for item in result_item["homogeneous_plot"]:
+                    st.write(f"### {item['name']}")
+                    survival.plot_tab(item)
+            elif selected_view == "ACC/DC Plot" and "acc_dc_plot" in result_item:
+                for item in result_item["acc_dc_plot"]:
+                    st.write(f"### {item['name']}")
+                    survival.plot_tab(item)
+        else:
+            # For flat results (e.g. from branches that don't use splining)
+            if isinstance(result_item, list):
+                for item in result_item:
+                    if isinstance(item, pd.DataFrame):
+                        st.dataframe(utils.clean_df(item))
+                    else:
+                        st.write(item)
             else:
-                # For flat results (e.g. from branches that don't use splining)
-                if isinstance(result_item, list):
-                    for item in result_item:
-                        if isinstance(item, pd.DataFrame):
-                            st.dataframe(utils.clean_df(item))
-                        else:
-                            st.write(item)
-                else:
-                    st.write(result_item)
+                st.write(result_item)
 
 elif selected_method=='Loyalty' and st.session_state['transformed_data'] is not None:
     key = selected_method.lower().replace(' ', '_')
     data = st.session_state['transformed_data']
-    tabs = st.tabs(st.session_state['tabs'][key])
-     # First tab: Display the raw transformed data
-    with tabs[0]:
+    
+    # Use selectbox for main navigation to preserve selection across reruns
+    tab_options = st.session_state['tabs'][key]
+    
+    # Initialize tab selection in session state
+    tab_select_key = f"{key}_tab_select"
+    if tab_select_key not in st.session_state:
+        st.session_state[tab_select_key] = tab_options[0] if tab_options else "Data"
+    
+    # Ensure current selection is valid
+    if st.session_state[tab_select_key] not in tab_options:
+        st.session_state[tab_select_key] = tab_options[0] if tab_options else "Data"
+    
+    selected_tab = st.selectbox(
+        "Select Result",
+        tab_options,
+        key=tab_select_key,
+        label_visibility="collapsed"
+    )
+    
+    st.divider()
+    
+    # Find the index of the selected tab
+    selected_idx = tab_options.index(selected_tab) if selected_tab in tab_options else 0
+    
+    # Display content based on selection
+    if selected_idx == 0:
+        # Data tab
         st.subheader("Data")
         st.write("Data loaded and transformed:")
         st.dataframe(utils.clean_df(data))
-    
-    # Additional tabs: Display each Loyalty result
-    for idx, res in enumerate(st.session_state['results'][key], start=1):
-        with tabs[idx]:
-            # For M Model and Model Report, we expect a group dictionary with "mode", "report", and "plot"
-            if isinstance(res, dict) and res.get("mode") in ["loyalty_m", "loyalty_q"]:
-                sub_tabs = st.tabs(["Report", "Plot"])
-                with sub_tabs[0]:
-                    for item in res["report"]:
-                        if isinstance(item, pd.DataFrame):
-                            st.dataframe(utils.clean_df(item))
-                        else:
-                            st.write(item)
-                with sub_tabs[1]:
-                    st.write(f"### {res['plot']['name']}")
-                    st.pyplot(res['plot']['figure'])
+    else:
+        # Result tabs
+        res = st.session_state['results'][key][selected_idx - 1]
+        idx = selected_idx
+        
+        # For M Model and Model Report, we expect a group dictionary with "mode", "report", and "plot"
+        if isinstance(res, dict) and res.get("mode") in ["loyalty_m", "loyalty_q"]:
+            # Use radio for sub-view selection
+            view_key = f"loyalty_view_{idx}"
+            if view_key not in st.session_state:
+                st.session_state[view_key] = "Report"
+            
+            selected_view = st.radio(
+                "Select View",
+                ["Report", "Plot"],
+                key=view_key,
+                horizontal=True,
+                label_visibility="collapsed"
+            )
+            
+            st.divider()
+            
+            if selected_view == "Report":
+                for item in res["report"]:
+                    if isinstance(item, pd.DataFrame):
+                        st.dataframe(utils.clean_df(item))
+                    else:
+                        st.write(item)
+            else:  # Plot
+                st.write(f"### {res['plot']['name']}")
+                st.plotly_chart(res['plot']['figure'], use_container_width=True)
+        else:
+            # For explanatory variable results (which are DataFrames)
+            if isinstance(res, pd.DataFrame):
+                st.dataframe(utils.clean_df(res))
             else:
-                # For explanatory variable results (which are DataFrames)
-                if isinstance(res, pd.DataFrame):
-                    st.dataframe(utils.clean_df(res))
-                else:
-                    st.write(res)
+                st.write(res)
 
 elif selected_method == 'Ranking' and st.session_state.get('transformed_data') is not None:
     key = selected_method.lower().replace(' ', '_')
@@ -1054,7 +1218,7 @@ elif selected_method == 'Ranking' and st.session_state.get('transformed_data') i
                     new_tab_label = f"Exploratory {len(st.session_state['results'][key])}"
                     st.session_state['tabs'][key].append(new_tab_label)
                     
-                    st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab below.")
+                    st.success(f"✅ Analysis complete! Select '{new_tab_label}' from the dropdown below.")
                     
                 elif ranking_model == "Confirmatory":
                     results = ranking.confirmatory_computation(data, upper_polarity_idx, sat_constraint)
@@ -1075,7 +1239,7 @@ elif selected_method == 'Ranking' and st.session_state.get('transformed_data') i
                     new_tab_label = f"Confirmatory {len(st.session_state['results'][key])}"
                     st.session_state['tabs'][key].append(new_tab_label)
                     
-                    st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab below.")
+                    st.success(f"✅ Analysis complete! Select '{new_tab_label}' from the dropdown below.")
                     
             except Exception as e:
                 st.error(f"Error in {ranking_model} analysis: {str(e)}")
@@ -1176,7 +1340,7 @@ elif selected_method == 'Ranking' and st.session_state.get('transformed_data') i
                             st.session_state['results'][key].append(new_data)
                             new_tab_label = f"Explanatory Result {len(st.session_state['results'][key])}"
                             st.session_state['tabs'][key].append(new_tab_label)
-                            st.success(f"✅ Data created! View results in the '{new_tab_label}' tab below.")
+                            st.success(f"✅ Data created! Select '{new_tab_label}' from the dropdown below.")
                             
                             # Display data and provide download option
                             st.write(new_data)
@@ -1189,82 +1353,121 @@ elif selected_method == 'Ranking' and st.session_state.get('transformed_data') i
                     import traceback
                     st.code(traceback.format_exc())
     
-    # Display Ranking results in tabs.
-    tabs = st.tabs(st.session_state['tabs'][key])
-    with tabs[0]:
+    # Use selectbox for main navigation to preserve selection across reruns
+    tab_options = st.session_state['tabs'][key]
+    
+    # Initialize tab selection in session state
+    tab_select_key = f"{key}_tab_select"
+    if tab_select_key not in st.session_state:
+        st.session_state[tab_select_key] = tab_options[0] if tab_options else "Data"
+    
+    # Ensure current selection is valid
+    if st.session_state[tab_select_key] not in tab_options:
+        st.session_state[tab_select_key] = tab_options[0] if tab_options else "Data"
+    
+    selected_tab = st.selectbox(
+        "Select Result",
+        tab_options,
+        key=tab_select_key,
+        label_visibility="collapsed"
+    )
+    
+    st.divider()
+    
+    # Find the index of the selected tab
+    selected_idx = tab_options.index(selected_tab) if selected_tab in tab_options else 0
+    
+    # Display content based on selection
+    if selected_idx == 0:
+        # Data tab
         st.subheader("Data")
         st.dataframe(utils.clean_df(data))
-    
-    # Ensure we don't try to access tabs that don't exist
-    num_tabs = len(st.session_state['tabs'][key])
-    for idx, res in enumerate(st.session_state['results'][key], start=1):
-        if idx < num_tabs:  # Make sure the tab index exists
-            with tabs[idx]:
-                # For result items from confirmatory_report function
-                if isinstance(res, list):
-                    # Create three sub-tabs instead of displaying results directly
-                    sub_tabs = st.tabs(["Analysis Results", "Average Satisfaction", "Distribution by Brand Groups"])
-                    
-                    # First tab: Display the report items
-                    with sub_tabs[0]:
-                        display_result_items(res)
-                    
-                    # Second and third tabs: Display plots if comp_results is available
-                    if 'comp_results' in st.session_state and key in st.session_state['comp_results']:
-                        if idx <= len(st.session_state['comp_results'][key]):
-                            comp_data = st.session_state['comp_results'][key][idx-1]
-                            if comp_data and 'analysis_type' in comp_data:
-                                # Second tab: Average satisfaction plot
-                                with sub_tabs[1]:
-                                    try:
-                                        fig = ranking.plot_confirmatory_brand_clusters(comp_data['results'])
-                                        st.pyplot(fig)
-                                    except Exception as e:
-                                        st.error(f"Error generating brand clusters plot: {str(e)}")
-                                
-                                # Third tab: Distribution plot
-                                with sub_tabs[2]:
-                                    try:
-                                        fig = ranking.plot_confirmatory_brand_distribution(comp_data['results'])
-                                        st.pyplot(fig)
-                                    except Exception as e:
-                                        st.error(f"Error generating distribution plot: {str(e)}")
-                            else:
-                                # Handle case where comp_data doesn't have analysis_type
-                                for i in range(1, 3):
-                                    with sub_tabs[i]:
-                                        st.warning("Plot data not available.")
+    else:
+        # Result tabs
+        res = st.session_state['results'][key][selected_idx - 1]
+        idx = selected_idx
+        
+        # For result items from confirmatory_report function
+        if isinstance(res, list):
+            # Use radio for sub-view selection
+            view_key = f"ranking_view_{idx}"
+            if view_key not in st.session_state:
+                st.session_state[view_key] = "Analysis Results"
+            
+            selected_view = st.radio(
+                "Select View",
+                ["Analysis Results", "Average Satisfaction", "Distribution by Brand Groups"],
+                key=view_key,
+                horizontal=True,
+                label_visibility="collapsed"
+            )
+            
+            st.divider()
+            
+            if selected_view == "Analysis Results":
+                display_result_items(res)
+            elif selected_view == "Average Satisfaction":
+                if 'comp_results' in st.session_state and key in st.session_state['comp_results']:
+                    if idx <= len(st.session_state['comp_results'][key]):
+                        comp_data = st.session_state['comp_results'][key][idx-1]
+                        if comp_data and 'analysis_type' in comp_data:
+                            try:
+                                fig = ranking.plot_confirmatory_brand_clusters(comp_data['results'])
+                                st.plotly_chart(fig, use_container_width=True)
+                            except Exception as e:
+                                st.error(f"Error generating brand clusters plot: {str(e)}")
                         else:
-                            # Handle case where idx > len(comp_results)
-                            for i in range(1, 3):
-                                with sub_tabs[i]:
-                                    st.warning("Plot data not available for this result.")
+                            st.warning("Plot data not available.")
                     else:
-                        # Handle case where comp_results is not available
-                        for i in range(1, 3):
-                            with sub_tabs[i]:
-                                st.warning("No plot data available. Run analysis again to see plots.")
-                
-                # For old-style group results with mode="ranking_confirmatory"
-                elif isinstance(res, dict) and res.get("mode") in ["ranking_confirmatory", "ranking_exploratory", "ranking_explanatory", "ranking_explanatory_var"]:
-                    sub_tabs = st.tabs(["Report", "Plots"])
-                    with sub_tabs[0]:
-                        display_result_items(res.get("report", []))
-                    with sub_tabs[1]:
-                        if "plots" in res:
-                            for plot_name, plot in res["plots"].items():
-                                st.markdown(f"#### {plot_name}")
-                                st.pyplot(plot)
-                        else:
-                            st.warning("No plots available for this analysis.")
+                        st.warning("Plot data not available for this result.")
                 else:
-                    # Fallback for any other type of result
-                    st.write(res)
+                    st.warning("No plot data available. Run analysis again to see plots.")
+            else:  # Distribution by Brand Groups
+                if 'comp_results' in st.session_state and key in st.session_state['comp_results']:
+                    if idx <= len(st.session_state['comp_results'][key]):
+                        comp_data = st.session_state['comp_results'][key][idx-1]
+                        if comp_data and 'analysis_type' in comp_data:
+                            try:
+                                fig = ranking.plot_confirmatory_brand_distribution(comp_data['results'])
+                                st.plotly_chart(fig, use_container_width=True)
+                            except Exception as e:
+                                st.error(f"Error generating distribution plot: {str(e)}")
+                        else:
+                            st.warning("Plot data not available.")
+                    else:
+                        st.warning("Plot data not available for this result.")
+                else:
+                    st.warning("No plot data available. Run analysis again to see plots.")
+        
+        # For old-style group results with mode="ranking_confirmatory"
+        elif isinstance(res, dict) and res.get("mode") in ["ranking_confirmatory", "ranking_exploratory", "ranking_explanatory", "ranking_explanatory_var"]:
+            # Use radio for sub-view selection
+            view_key = f"ranking_view_{idx}"
+            if view_key not in st.session_state:
+                st.session_state[view_key] = "Report"
+            
+            selected_view = st.radio(
+                "Select View",
+                ["Report", "Plots"],
+                key=view_key,
+                horizontal=True,
+                label_visibility="collapsed"
+            )
+            
+            st.divider()
+            
+            if selected_view == "Report":
+                display_result_items(res.get("report", []))
+            else:  # Plots
+                if "plots" in res:
+                    for plot_name, plot in res["plots"].items():
+                        st.markdown(f"#### {plot_name}")
+                        st.plotly_chart(plot, use_container_width=True)
+                else:
+                    st.warning("No plots available for this analysis.")
         else:
-            # We have more results than tabs - this shouldn't happen but we handle it gracefully
-            st.error(f"Error: More results than tabs. Missing tab for result {idx}")
-            # Create a new tab for this result
-            st.session_state['tabs'][key].append(f"Result {idx}")
+            # Fallback for any other type of result
+            st.write(res)
             st.warning("Tab has been created. Please refresh the page to see it.")
 
 # ----------------------------
@@ -1377,7 +1580,7 @@ elif selected_method == 'Spacing Models' and st.session_state.get('transformed_d
                 st.session_state['results'][key].append(result_data)
                 new_tab_label = f"Model Selection {len(st.session_state['results'][key])}"
                 st.session_state['tabs'][key].append(new_tab_label)
-                st.success(f"✅ Model Selection complete! View results in the '{new_tab_label}' tab below.")
+                st.success(f"✅ Model Selection complete! Select '{new_tab_label}' from the dropdown below.")
                 
             else:
                 # Specific model selected
@@ -1418,81 +1621,176 @@ elif selected_method == 'Spacing Models' and st.session_state.get('transformed_d
                 st.session_state['results'][key].append(result_data)
                 new_tab_label = f"{spacing_model_type} {len(st.session_state['results'][key])}"
                 st.session_state['tabs'][key].append(new_tab_label)
-                st.success(f"✅ Analysis complete! View results in the '{new_tab_label}' tab below.")
+                st.success(f"✅ Analysis complete! Select '{new_tab_label}' from the dropdown below.")
                 
         except Exception as e:
             st.error(f"Error in Spacing Models analysis: {str(e)}")
             import traceback
             st.sidebar.code(traceback.format_exc())
     
-    # Display Spacing Models results in tabs
-    tabs = st.tabs(st.session_state['tabs'][key])
+    # Use selectbox for main navigation to preserve selection across reruns
+    tab_options = st.session_state['tabs'][key]
     
-    with tabs[0]:
+    # Initialize tab selection in session state
+    tab_select_key = f"{key}_tab_select"
+    if tab_select_key not in st.session_state:
+        st.session_state[tab_select_key] = tab_options[0] if tab_options else "Data"
+    
+    # Ensure current selection is valid
+    if st.session_state[tab_select_key] not in tab_options:
+        st.session_state[tab_select_key] = tab_options[0] if tab_options else "Data"
+    
+    selected_tab = st.selectbox(
+        "Select Result",
+        tab_options,
+        key=tab_select_key,
+        label_visibility="collapsed"
+    )
+    
+    st.divider()
+    
+    # Find the index of the selected tab
+    selected_idx = tab_options.index(selected_tab) if selected_tab in tab_options else 0
+    
+    # Display content based on selection
+    if selected_idx == 0:
+        # Data tab
         st.subheader("Data")
         st.write("Contingency table for analysis:")
         st.dataframe(utils.clean_df(data))
-    
-    # Additional tabs: Display each Spacing Models result
-    for idx, res in enumerate(st.session_state['results'][key], start=1):
-        with tabs[idx]:
-            if isinstance(res, dict):
-                if res.get("mode") == "spacing_model_selection":
-                    # Display model selection results
+    else:
+        # Result tabs
+        res = st.session_state['results'][key][selected_idx - 1]
+        idx = selected_idx  # For compatibility with existing code
+        
+        if isinstance(res, dict):
+            if res.get("mode") == "spacing_model_selection":
+                # Display model selection results
+                display_result_items(res.get("report", []))
+                
+            elif res.get("mode") == "spacing_specific_model":
+                # Display specific model results with radio buttons instead of tabs
+                model_result = res.get("result", {})
+                model_name = res.get("model_name", "Exponential Spacing")
+                
+                # Use radio buttons to preserve selection across reruns
+                view_key = f"spacing_view_{idx}"
+                if view_key not in st.session_state:
+                    st.session_state[view_key] = "Report"
+                
+                selected_view = st.radio(
+                    "Select View",
+                    ["Report", "Parameters Plot", "Odd Ratio Computation"],
+                    key=view_key,
+                    horizontal=True,
+                    label_visibility="collapsed"
+                )
+                
+                st.divider()
+                
+                if selected_view == "Report":
                     display_result_items(res.get("report", []))
-                    
-                elif res.get("mode") == "spacing_specific_model":
-                    # Display specific model results with sub-tabs
-                    model_result = res.get("result", {})
-                    model_name = res.get("model_name", "Exponential Spacing")
-                    
-                    sub_tabs = st.tabs(["Report", "Parameters Plot", "Odd Ratio Computation"])
-                    
-                    with sub_tabs[0]:
-                        display_result_items(res.get("report", []))
-                    
-                    with sub_tabs[1]:
-                        # Plot mu and nu parameters
+                
+                elif selected_view == "Parameters Plot":
+                        # Plot mu and nu parameters with Plotly for hover support
                         try:
-                            import matplotlib.pyplot as plt
+                            import plotly.graph_objects as go
+                            from plotly.subplots import make_subplots
                             
-                            fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-                            
-                            # Plot mu values
+                            # Get data
                             mu = model_result.get('mu', [])
                             mu_easd = model_result.get('mu_easd', [])
-                            x_mu = range(1, len(mu) + 1)
+                            nu = model_result.get('nu', [])
+                            nu_easd = model_result.get('nu_easd', [])
                             
-                            axes[0].plot(x_mu, mu, 'b-o', markersize=8, linewidth=2, label='Mu')
+                            x_mu = list(range(1, len(mu) + 1))
+                            x_nu = list(range(1, len(nu) + 1))
+                            
+                            # Create subplots
+                            fig = make_subplots(rows=1, cols=2, 
+                                              subplot_titles=('Row Spacing Parameters (Mu)', 
+                                                            'Column Spacing Parameters (Nu)'))
+                            
+                            # Mu plot - confidence band
                             if len(mu_easd) > 0 and not np.all(np.isnan(mu_easd)):
                                 mu_lower = mu - 1.96 * np.nan_to_num(mu_easd, nan=0)
                                 mu_upper = mu + 1.96 * np.nan_to_num(mu_easd, nan=0)
-                                axes[0].fill_between(x_mu, mu_lower, mu_upper, alpha=0.2, color='blue')
-                            axes[0].axhline(y=0, color='gray', linestyle='--', alpha=0.5)
-                            axes[0].set_xlabel('Row Index')
-                            axes[0].set_ylabel('Mu Value')
-                            axes[0].set_title('Row Spacing Parameters (Mu)')
-                            axes[0].grid(True, alpha=0.3)
+                                fig.add_trace(go.Scatter(
+                                    x=x_mu + x_mu[::-1],
+                                    y=list(mu_upper) + list(mu_lower)[::-1],
+                                    fill='toself',
+                                    fillcolor='rgba(0,100,255,0.2)',
+                                    line=dict(color='rgba(255,255,255,0)'),
+                                    hoverinfo='skip',
+                                    showlegend=False,
+                                    name='95% CI'
+                                ), row=1, col=1)
                             
-                            # Plot nu values
-                            nu = model_result.get('nu', [])
-                            nu_easd = model_result.get('nu_easd', [])
-                            x_nu = range(1, len(nu) + 1)
+                            # Mu plot - main line with hover
+                            mu_hover_text = [
+                                f"Mu[{i}]<br>Estimate: {mu[i-1]:.4f}<br>E.A.S.D.: {mu_easd[i-1]:.4f}" 
+                                if not np.isnan(mu_easd[i-1]) else f"Mu[{i}]<br>Estimate: {mu[i-1]:.4f}<br>E.A.S.D.: NA"
+                                for i in x_mu
+                            ]
+                            fig.add_trace(go.Scatter(
+                                x=x_mu, y=mu,
+                                mode='lines+markers',
+                                marker=dict(size=10, color='blue'),
+                                line=dict(color='blue', width=2),
+                                name='Mu',
+                                hovertext=mu_hover_text,
+                                hoverinfo='text'
+                            ), row=1, col=1)
                             
-                            axes[1].plot(x_nu, nu, 'r-o', markersize=8, linewidth=2, label='Nu')
+                            # Mu plot - zero line
+                            fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5, row=1, col=1)
+                            
+                            # Nu plot - confidence band
                             if len(nu_easd) > 0 and not np.all(np.isnan(nu_easd)):
                                 nu_lower = nu - 1.96 * np.nan_to_num(nu_easd, nan=0)
                                 nu_upper = nu + 1.96 * np.nan_to_num(nu_easd, nan=0)
-                                axes[1].fill_between(x_nu, nu_lower, nu_upper, alpha=0.2, color='red')
-                            axes[1].axhline(y=0, color='gray', linestyle='--', alpha=0.5)
-                            axes[1].set_xlabel('Column Index')
-                            axes[1].set_ylabel('Nu Value')
-                            axes[1].set_title('Column Spacing Parameters (Nu)')
-                            axes[1].grid(True, alpha=0.3)
+                                fig.add_trace(go.Scatter(
+                                    x=x_nu + x_nu[::-1],
+                                    y=list(nu_upper) + list(nu_lower)[::-1],
+                                    fill='toself',
+                                    fillcolor='rgba(255,100,100,0.2)',
+                                    line=dict(color='rgba(255,255,255,0)'),
+                                    hoverinfo='skip',
+                                    showlegend=False,
+                                    name='95% CI'
+                                ), row=1, col=2)
                             
-                            plt.tight_layout()
-                            st.pyplot(fig)
-                            plt.close(fig)
+                            # Nu plot - main line with hover
+                            nu_hover_text = [
+                                f"Nu[{i}]<br>Estimate: {nu[i-1]:.4f}<br>E.A.S.D.: {nu_easd[i-1]:.4f}" 
+                                if not np.isnan(nu_easd[i-1]) else f"Nu[{i}]<br>Estimate: {nu[i-1]:.4f}<br>E.A.S.D.: NA"
+                                for i in x_nu
+                            ]
+                            fig.add_trace(go.Scatter(
+                                x=x_nu, y=nu,
+                                mode='lines+markers',
+                                marker=dict(size=10, color='red'),
+                                line=dict(color='red', width=2),
+                                name='Nu',
+                                hovertext=nu_hover_text,
+                                hoverinfo='text'
+                            ), row=1, col=2)
+                            
+                            # Nu plot - zero line
+                            fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5, row=1, col=2)
+                            
+                            # Update layout
+                            fig.update_xaxes(title_text="Row Index", row=1, col=1)
+                            fig.update_xaxes(title_text="Column Index", row=1, col=2)
+                            fig.update_yaxes(title_text="Mu Value", row=1, col=1)
+                            fig.update_yaxes(title_text="Nu Value", row=1, col=2)
+                            fig.update_layout(
+                                height=450,
+                                showlegend=False,
+                                hovermode='closest'
+                            )
+                            
+                            st.plotly_chart(fig, use_container_width=True)
                             
                             # Display phi value
                             phi = model_result.get('phi', 0)
@@ -1503,90 +1801,179 @@ elif selected_method == 'Spacing Models' and st.session_state.get('transformed_d
                                 
                         except Exception as e:
                             st.error(f"Error generating plot: {str(e)}")
+                
+                else:  # selected_view == "Odd Ratio Computation"
+                    # Odd Ratio Computation - dynamic section
+                    st.subheader("Odd Ratio Computation")
+                    st.write("Select two rows and two columns to compute the odd ratio.")
                     
-                    with sub_tabs[2]:
-                        # Odd Ratio Computation - dynamic section
-                        st.subheader("Odd Ratio Computation")
-                        st.write("Select two rows and two columns to compute the odd ratio.")
+                    mu = model_result.get('mu', [])
+                    nu = model_result.get('nu', [])
+                    phi = model_result.get('phi', 0)
+                    num_row = len(mu)
+                    num_col = len(nu)
+                    
+                    # Create unique keys for this result
+                    unique_key = f"spacing_or_{idx}"
+                    
+                    # Ensure session state is initialized (should already be done at top of script)
+                    if f"{unique_key}_row1" not in st.session_state:
+                        st.session_state[f"{unique_key}_row1"] = 1
+                    if f"{unique_key}_row2" not in st.session_state:
+                        st.session_state[f"{unique_key}_row2"] = min(2, num_row) if num_row > 1 else 1
+                    if f"{unique_key}_col1" not in st.session_state:
+                        st.session_state[f"{unique_key}_col1"] = 1
+                    if f"{unique_key}_col2" not in st.session_state:
+                        st.session_state[f"{unique_key}_col2"] = min(2, num_col) if num_col > 1 else 1
+                    
+                    # Input fields in columns - don't pass 'value' when using 'key' with session state
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.markdown("**Rows**")
+                        row1 = st.number_input("Row 1", min_value=1, max_value=num_row, step=1, key=f"{unique_key}_row1")
+                        row2 = st.number_input("Row 2", min_value=1, max_value=num_row, step=1, key=f"{unique_key}_row2")
+                    
+                    with col2:
+                        st.markdown("**Columns**")
+                        col1_val = st.number_input("Column 1", min_value=1, max_value=num_col, step=1, key=f"{unique_key}_col1")
+                        col2_val = st.number_input("Column 2", min_value=1, max_value=num_col, step=1, key=f"{unique_key}_col2")
+                    
+                    # Compute button
+                    if st.button("Compute Odd Ratio", key=f"{unique_key}_compute"):
+                        # Validate inputs
+                        error_msg = None
+                        if row1 == row2:
+                            error_msg = "Row 1 and Row 2 should be different."
+                        elif col1_val == col2_val:
+                            error_msg = "Column 1 and Column 2 should be different."
                         
-                        mu = model_result.get('mu', [])
-                        nu = model_result.get('nu', [])
-                        phi = model_result.get('phi', 0)
-                        num_row = len(mu)
-                        num_col = len(nu)
-                        
-                        # Create unique keys for this result
-                        unique_key = f"spacing_or_{idx}"
-                        
-                        # Ensure session state is initialized (should already be done at top of script)
-                        if f"{unique_key}_row1" not in st.session_state:
-                            st.session_state[f"{unique_key}_row1"] = 1
-                        if f"{unique_key}_row2" not in st.session_state:
-                            st.session_state[f"{unique_key}_row2"] = min(2, num_row) if num_row > 1 else 1
-                        if f"{unique_key}_col1" not in st.session_state:
-                            st.session_state[f"{unique_key}_col1"] = 1
-                        if f"{unique_key}_col2" not in st.session_state:
-                            st.session_state[f"{unique_key}_col2"] = min(2, num_col) if num_col > 1 else 1
-                        
-                        # Input fields in columns - don't pass 'value' when using 'key' with session state
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            st.markdown("**Rows**")
-                            row1 = st.number_input("Row 1", min_value=1, max_value=num_row, step=1, key=f"{unique_key}_row1")
-                            row2 = st.number_input("Row 2", min_value=1, max_value=num_row, step=1, key=f"{unique_key}_row2")
-                        
-                        with col2:
-                            st.markdown("**Columns**")
-                            col1_val = st.number_input("Column 1", min_value=1, max_value=num_col, step=1, key=f"{unique_key}_col1")
-                            col2_val = st.number_input("Column 2", min_value=1, max_value=num_col, step=1, key=f"{unique_key}_col2")
-                        
-                        # Compute button
-                        if st.button("Compute Odd Ratio", key=f"{unique_key}_compute"):
-                            # Validate inputs
-                            error_msg = None
-                            if row1 == row2:
-                                error_msg = "Row 1 and Row 2 should be different."
-                            elif col1_val == col2_val:
-                                error_msg = "Column 1 and Column 2 should be different."
+                        if error_msg:
+                            st.error(error_msg)
+                        else:
+                            # Convert to 0-based indices
+                            r1, r2 = int(row1) - 1, int(row2) - 1
+                            c1, c2 = int(col1_val) - 1, int(col2_val) - 1
                             
-                            if error_msg:
-                                st.error(error_msg)
+                            # Compute odd ratio based on model type
+                            if model_name == "Exponential Spacing":
+                                # For Exponential Spacing: OR = exp(phi * (mu[r1] - mu[r2]) * (nu[c1] - nu[c2]))
+                                odd_ratio = np.exp(phi * (mu[r1] - mu[r2]) * (nu[c1] - nu[c2]))
                             else:
-                                # Convert to 0-based indices
-                                r1, r2 = int(row1) - 1, int(row2) - 1
-                                c1, c2 = int(col1_val) - 1, int(col2_val) - 1
-                                
-                                # Compute odd ratio based on model type
-                                if model_name == "Exponential Spacing":
-                                    # For Exponential Spacing: OR = exp(phi * (mu[r1] - mu[r2]) * (nu[c1] - nu[c2]))
-                                    odd_ratio = np.exp(phi * (mu[r1] - mu[r2]) * (nu[c1] - nu[c2]))
+                                # For Canonical Correlation: compute from expected values
+                                expected = model_result.get('expected', None)
+                                if expected is not None:
+                                    odd_ratio = (expected[r1, c1] * expected[r2, c2]) / (expected[r1, c2] * expected[r2, c1])
                                 else:
-                                    # For Canonical Correlation: compute from expected values
-                                    expected = model_result.get('expected', None)
-                                    if expected is not None:
-                                        odd_ratio = (expected[r1, c1] * expected[r2, c2]) / (expected[r1, c2] * expected[r2, c1])
-                                    else:
-                                        odd_ratio = np.nan
-                                
-                                # Store the result in session state
-                                st.session_state[f"{unique_key}_result"] = odd_ratio
-                        
-                        # Display result if available
-                        if f"{unique_key}_result" in st.session_state:
-                            odd_ratio = st.session_state[f"{unique_key}_result"]
-                            st.success(f"**Odd Ratio:** {odd_ratio:.6f}")
+                                    odd_ratio = np.nan
                             
-                            # Interpretation
-                            if odd_ratio > 1:
-                                st.info(f"The odds in row {row1} vs row {row2} are {odd_ratio:.4f} times higher for column {col1_val} compared to column {col2_val}.")
-                            elif odd_ratio < 1:
-                                st.info(f"The odds in row {row1} vs row {row2} are {1/odd_ratio:.4f} times lower for column {col1_val} compared to column {col2_val}.")
-                            else:
-                                st.info("The odds ratio is 1, indicating no association between the selected rows and columns.")
-                else:
-                    # Fallback display
-                    display_result_items(res.get("report", []))
+                            # Store the result in session state
+                            st.session_state[f"{unique_key}_result"] = odd_ratio
+                    
+                    # Display result if available
+                    if f"{unique_key}_result" in st.session_state:
+                        odd_ratio = st.session_state[f"{unique_key}_result"]
+                        st.success(f"**Odd Ratio:** {odd_ratio:.6f}")
+                        
+                        # Interpretation
+                        if odd_ratio > 1:
+                            st.info(f"The odds in row {row1} vs row {row2} are {odd_ratio:.4f} times higher for column {col1_val} compared to column {col2_val}.")
+                        elif odd_ratio < 1:
+                            st.info(f"The odds in row {row1} vs row {row2} are {1/odd_ratio:.4f} times lower for column {col1_val} compared to column {col2_val}.")
+                        else:
+                            st.info("The odds ratio is 1, indicating no association between the selected rows and columns.")
             else:
-                # Fallback for any other type of result
-                st.write(res)
+                # Fallback display
+                display_result_items(res.get("report", []))
+        else:
+            # Fallback for any other type of result
+            st.write(res)
+
+# Scale Conversion Analysis Section
+elif selected_method == 'Scale Conversion' and st.session_state.get('transformed_data') is not None:
+    key = selected_method.lower().replace(' ', '_')
+    data = st.session_state['transformed_data']
+    
+    # Initialize storage for Scale Conversion results and tabs if not already done
+    if key not in st.session_state['results']:
+        st.session_state['results'][key] = []
+    if key not in st.session_state['tabs']:
+        st.session_state['tabs'][key] = ['Data']
+    
+    # The data has been transformed in utils.py to contain frequency distributions
+    # Columns: Row_Scale, Col_Scale, Row_Labels, Col_Labels
+    if st.sidebar.button("Go!", key="scale_go"):
+        try:
+            # Extract the frequency data
+            row_data = data['Row_Scale'].dropna().values.astype(float)
+            col_data = data['Col_Scale'].dropna().values.astype(float)
+            row_labels = data['Row_Labels'].dropna().values
+            col_labels = data['Col_Labels'].dropna().values
+            
+            # Validate data
+            if len(row_data) == 0:
+                st.error("Row scale contains no valid values.")
+            elif len(col_data) == 0:
+                st.error("Column scale contains no valid values.")
+            elif np.sum(row_data) == 0 or np.sum(col_data) == 0:
+                st.error("At least one value must be positive in each scale.")
+            else:
+                # Generate report with labels
+                report = scale_conversion.scale_conversion_report(row_data, col_data, row_labels, col_labels)
+                
+                # Store result
+                st.session_state['results'][key].append(report)
+                new_tab_label = f"Result {len(st.session_state['results'][key])}"
+                st.session_state['tabs'][key].append(new_tab_label)
+                st.success(f"✅ Analysis complete! Select '{new_tab_label}' from the dropdown below.")
+                
+        except Exception as e:
+            st.error(f"Error in Scale Conversion analysis: {str(e)}")
+            import traceback
+            st.sidebar.code(traceback.format_exc())
+    
+    # Use selectbox for main navigation to preserve selection across reruns
+    tab_options = st.session_state['tabs'][key]
+    
+    # Initialize tab selection in session state
+    tab_select_key = f"{key}_tab_select"
+    if tab_select_key not in st.session_state:
+        st.session_state[tab_select_key] = tab_options[0] if tab_options else "Data"
+    
+    # Ensure current selection is valid
+    if st.session_state[tab_select_key] not in tab_options:
+        st.session_state[tab_select_key] = tab_options[0] if tab_options else "Data"
+    
+    selected_tab = st.selectbox(
+        "Select Result",
+        tab_options,
+        key=tab_select_key,
+        label_visibility="collapsed"
+    )
+    
+    st.divider()
+    
+    # Find the index of the selected tab
+    selected_idx = tab_options.index(selected_tab) if selected_tab in tab_options else 0
+    
+    # Display content based on selection
+    if selected_idx == 0:
+        # Data tab - show a clean two-column table like the R app
+        st.subheader("Data")
+        
+        # Create a simple Row/Column table
+        row_counts = data['Row_Scale'].dropna().values
+        col_counts = data['Col_Scale'].dropna().values
+        
+        # Make both same length (pad with empty if needed)
+        max_len = max(len(row_counts), len(col_counts))
+        display_df = pd.DataFrame({
+            'Row': list(row_counts) + [''] * (max_len - len(row_counts)),
+            'Column': list(col_counts) + [''] * (max_len - len(col_counts))
+        })
+        display_df.index = range(1, len(display_df) + 1)
+        st.dataframe(display_df)
+    else:
+        # Result tabs
+        res = st.session_state['results'][key][selected_idx - 1]
+        display_result_items(res)

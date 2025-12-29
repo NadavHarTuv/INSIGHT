@@ -258,6 +258,33 @@ def load_data(uploaded_file, analysis_method):
                     return (raw_data, contingency_table)
             else:
                 return (raw_data, raw_data)
+        
+        elif analysis_method == 'Scale Conversion':
+            # Scale conversion needs two categorical columns to compute frequency distributions
+            row_column = st.sidebar.selectbox('Which column for Row scale?', np.arange(1, raw_data.shape[1]+1), index=None, placeholder='Select column', key='scale_row_col')
+            col_column = st.sidebar.selectbox('Which column for Column scale?', np.arange(1, raw_data.shape[1]+1), index=None, placeholder='Select column', key='scale_col_col')
+            
+            if row_column and col_column:
+                row_column = row_column - 1
+                col_column = col_column - 1
+                
+                # Compute frequency distributions for each column
+                row_counts = raw_data.iloc[:, row_column].value_counts().sort_index()
+                col_counts = raw_data.iloc[:, col_column].value_counts().sort_index()
+                
+                # Create a DataFrame with the frequency distributions
+                # Pad shorter series with zeros to make them same length if needed
+                max_len = max(len(row_counts), len(col_counts))
+                
+                scale_data = pd.DataFrame({
+                    'Row_Scale': list(row_counts.values) + [0] * (max_len - len(row_counts)),
+                    'Col_Scale': list(col_counts.values) + [0] * (max_len - len(col_counts)),
+                    'Row_Labels': list(row_counts.index) + [None] * (max_len - len(row_counts)),
+                    'Col_Labels': list(col_counts.index) + [None] * (max_len - len(col_counts))
+                })
+                
+                return (raw_data, scale_data)
+            return (raw_data, None)
                 
             
     return (None, None)

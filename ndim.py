@@ -21,12 +21,13 @@ def read_input(ndim_data):
                                              help=utils.RANGE_INPUT_HELP)
     
     # Extract digits from target_text using regex
-    digits = re.findall(r'\d+', target_text)
-    if digits:
-        target = int(digits[0]) - 1
-    else:
-        st.sidebar.error("Could not extract a valid target index from the column name.")
-        target = None
+    if target_text is not None:
+        digits = re.findall(r'\d+', target_text)
+        if digits:
+            target = int(digits[0]) - 1
+        else:
+            st.sidebar.error("Could not extract a valid target index from the column name.")
+            target = None
 
     if predictors_text:
         predictors = utils.parse_text_groups(predictors_text)
@@ -991,8 +992,9 @@ def model_value_tab(ndim_results):
                 st.session_state[plot_key] = (model_value_plot, model_accuracy_plot)
             
             # Display plots from session state
-            if st.session_state[plot_key] is not None:
-                model_value_plot, model_accuracy_plot = st.session_state[plot_key]
+            plots = st.session_state.get(plot_key)
+            if plots is not None:
+                model_value_plot, model_accuracy_plot = plots
                 if model_value_plot:
                     st.plotly_chart(model_value_plot, use_container_width=True)
                 if model_accuracy_plot:
@@ -1017,8 +1019,9 @@ def model_value_tab(ndim_results):
                 st.session_state[compute_key] = results
             
             # Display results from session state
-            if st.session_state[compute_key] is not None:
-                for result in st.session_state[compute_key]:
+            compute_results = st.session_state.get(compute_key)
+            if compute_results is not None:
+                for result in compute_results:
                     if isinstance(result, pd.DataFrame):
                         st.dataframe(result)
                     else:

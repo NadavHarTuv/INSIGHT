@@ -749,32 +749,43 @@ def spacing_model_report(result, model_type, model_name="Exponential Spacing"):
     
     report.append("## Parameter Estimates")
     
-    # Create parameter table
+    # Create separate parameter tables for Mu and Nu
     num_row = len(result['mu'])
     num_col = len(result['nu'])
     
-    params_data = []
+    # Mu parameters table
+    mu_params = []
     for i in range(num_row):
-        params_data.append({
+        mu_params.append({
             'Parameter': f'Mu[{i+1}]',
             'Estimate': f"{result['mu'][i]:.4f}",
             'E.A.S.D.': f"{result['mu_easd'][i]:.4f}" if not np.isnan(result['mu_easd'][i]) else "NA"
         })
     
+    report.append("### Row Spacing Parameters (Mu)")
+    report.append(pd.DataFrame(mu_params))
+    
+    # Nu parameters table
+    nu_params = []
     for i in range(num_col):
-        params_data.append({
+        nu_params.append({
             'Parameter': f'Nu[{i+1}]',
             'Estimate': f"{result['nu'][i]:.4f}",
             'E.A.S.D.': f"{result['nu_easd'][i]:.4f}" if not np.isnan(result['nu_easd'][i]) else "NA"
         })
     
-    params_data.append({
+    report.append("### Column Spacing Parameters (Nu)")
+    report.append(pd.DataFrame(nu_params))
+    
+    # Phi parameter
+    phi_params = [{
         'Parameter': 'Phi',
         'Estimate': f"{result['phi']:.4f}",
         'E.A.S.D.': f"{result['phi_easd']:.4f}" if not np.isnan(result['phi_easd']) else "NA"
-    })
+    }]
     
-    report.append(pd.DataFrame(params_data))
+    report.append("### Association Parameter")
+    report.append(pd.DataFrame(phi_params))
     
     # For Exponential Spacing, add max/min odd ratios
     if model_name == "Exponential Spacing" and 'max_odd_ratio' in result:

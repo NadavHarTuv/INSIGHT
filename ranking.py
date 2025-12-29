@@ -7,9 +7,8 @@ import utils
 from scipy import stats
 import streamlit as st
 from scipy.stats import chi2, norm
-import matplotlib.pyplot as plt
-import seaborn as sns
-from matplotlib.figure import Figure
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from itertools import permutations
 
 # Add this utility function near the top of the file, after imports
@@ -1820,13 +1819,36 @@ def plot_confirmatory_brand_clusters(result):
     if 'avg_satisfaction' not in result:
         raise ValueError("Result does not contain 'avg_satisfaction'.")
     avg = result['avg_satisfaction']
-    fig = plt.figure(figsize=(8, 5))
-    plt.bar(range(1, len(avg)+1), avg, color='skyblue', edgecolor='black')
-    plt.xlabel("Brand (by cluster ordering)")
-    plt.ylabel("Average Satisfaction")
-    plt.title("Average Satisfaction per Brand")
-    plt.xticks(range(1, len(avg)+1))
-    plt.tight_layout()
+    
+    # Create hover text
+    hover_text = [
+        f"<b>Brand {i}</b><br>Avg Satisfaction: {val:.4f}"
+        for i, val in enumerate(avg, 1)
+    ]
+    
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=list(range(1, len(avg)+1)),
+        y=avg,
+        marker=dict(color='skyblue', line=dict(color='black', width=1)),
+        hovertext=hover_text,
+        hoverinfo='text',
+        name='Average Satisfaction'
+    ))
+    
+    fig.update_layout(
+        title=dict(text="Average Satisfaction per Brand", font=dict(size=16)),
+        xaxis=dict(
+            title="Brand (by cluster ordering)",
+            tickmode='linear',
+            tick0=1,
+            dtick=1
+        ),
+        yaxis=dict(title="Average Satisfaction"),
+        hovermode='closest',
+        showlegend=False
+    )
+    
     return fig
 
 def plot_confirmatory_brand_distribution(result):
@@ -1859,15 +1881,6 @@ def plot_confirmatory_brand_distribution(result):
     # Calculate grid dimensions
     n_cols = min(3, num_clusters)  # Maximum 3 columns
     n_rows = (num_clusters + n_cols - 1) // n_cols  # Ceiling division
-    
-    # Create a single figure with subplots
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols*4, n_rows*3))
-    
-    # Flatten axes array for easier indexing if there are multiple rows and columns
-    if n_rows > 1 or n_cols > 1:
-        axes = axes.flatten()
-    else:
-        axes = [axes]  # Make it iterable for the single subplot case
     
     # Group brands by cluster
     brand_clusters = {}
@@ -1905,7 +1918,7 @@ def plot_confirmatory_brand_distribution(result):
                         # Multiple levels in partition
                         min_idx = min(current_indices) + 2  # +2 as above
                         max_idx = max(current_indices) + 2
-                        satisfaction_labels.append(f"Levels\n{min_idx}-{max_idx}")
+                        satisfaction_labels.append(f"Levels {min_idx}-{max_idx}")
                 else:
                     # Last level may not have a partition
                     satisfaction_labels.append(f"Level {j+1}")
@@ -1928,7 +1941,7 @@ def plot_confirmatory_brand_distribution(result):
                     # Multiple levels in partition
                     min_idx = min(current_indices) + 1  # +1 for 1-indexing
                     max_idx = max(current_indices) + 1
-                    satisfaction_labels.append(f"Levels\n{min_idx}-{max_idx}")
+                    satisfaction_labels.append(f"Levels {min_idx}-{max_idx}")
             
             # Add the constraint level
             satisfaction_labels.append(f"Level {constraint_index+1}")
@@ -1948,7 +1961,7 @@ def plot_confirmatory_brand_distribution(result):
                 # Multiple levels in partition
                 min_idx = min(current_indices) + 1  # +1 for 1-indexing
                 max_idx = max(current_indices) + 1
-                satisfaction_labels.append(f"Levels\n{min_idx}-{max_idx}")
+                satisfaction_labels.append(f"Levels {min_idx}-{max_idx}")
     
     # Ensure we have enough labels
     while len(satisfaction_labels) < num_levels:
@@ -1960,8 +1973,8 @@ def plot_confirmatory_brand_distribution(result):
     # Get stochastic ordering if available
     ordering = result.get('stochastic_ordering', None)
     
-    # Create brand cluster labels
-    brand_labels = []
+    # Create brand cluster info with ordering position for sorting
+    cluster_info = []
     for cluster_idx, cluster_id in enumerate(sorted_cluster_ids):
         brands = brand_clusters[cluster_id]
         
@@ -1970,106 +1983,251 @@ def plot_confirmatory_brand_distribution(result):
         else:
             brand_label = f"Brands {', '.join(map(str, brands))}"
         
-        # Add ordering number if stochastic ordering is available
+        # Get ordering position if stochastic ordering is available
         if ordering is not None:
             order_position = next((i+1 for i, idx in enumerate(ordering) 
                                  if idx < len(sorted_cluster_ids) and sorted_cluster_ids[idx] == cluster_id), 
                                 None)
             if order_position is not None:
                 brand_label = f"{order_position}. {brand_label}"
-        
-        brand_labels.append(brand_label)
-    
-    # Create a bar plot for each cluster
-    for i, cluster_id in enumerate(sorted_cluster_ids):
-        if i >= len(axes):
-            break  # Safety check
-            
-        ax = axes[i]
-        
-        # Get row index for this cluster
-        if ordering is not None:
-            # Find the position of this cluster in the ordering
-            order_idx = next((idx for idx in ordering if idx < len(sorted_cluster_ids) and sorted_cluster_ids[idx] == cluster_id), i)
         else:
-            order_idx = i
+            order_position = cluster_idx + 1
         
-        # Plot the data
-        bars = ax.bar(range(1, num_levels+1), collapsed[order_idx, :], color='skyblue', edgecolor='black')
+        # Get the data index for this cluster
+        if ordering is not None:
+            data_idx = next((idx for idx in ordering if idx < len(sorted_cluster_ids) and sorted_cluster_ids[idx] == cluster_id), cluster_idx)
+        else:
+            data_idx = cluster_idx
         
-        # Customize the plot
-        ax.set_xlabel("Satisfaction Level")
-        ax.set_ylabel("Probability")
-        ax.set_title(brand_labels[i])
-        ax.set_xticks(range(1, num_levels+1))
-        ax.set_xticklabels(satisfaction_labels)
-        ax.set_ylim(0, max(collapsed.max() * 1.1, 0.1))  # Set y-axis limit with some padding
-        
-        # If this plot shows data with a constraint reintegrated, highlight the constrained level
-        if has_constraint:
-            if constraint_index == 0:
-                highlight_idx = 0  # First column
-            else:
-                highlight_idx = num_levels - 1  # Last column
-            
-            # Highlight the constrained level bar
-            bars[highlight_idx].set_color('lightcoral')
+        cluster_info.append({
+            'order_position': order_position if order_position is not None else cluster_idx + 1,
+            'cluster_id': cluster_id,
+            'brand_label': brand_label,
+            'data_idx': data_idx
+        })
     
-    # Hide any unused subplots
-    for i in range(len(sorted_cluster_ids), len(axes)):
-        axes[i].set_visible(False)
+    # Sort clusters by their ordering position so plots appear in rank order
+    cluster_info.sort(key=lambda x: x['order_position'])
     
-    # Add a note about the constraint if applicable
+    # Create Plotly subplots
+    subplot_titles = [info['brand_label'] for info in cluster_info]
+    fig = make_subplots(rows=n_rows, cols=n_cols, subplot_titles=subplot_titles)
+    
+    # Determine highlight index if constraint was applied
+    highlight_idx = None
+    if has_constraint:
+        if constraint_index == 0:
+            highlight_idx = 0  # First bar
+        else:
+            highlight_idx = num_levels - 1  # Last bar
+    
+    # Create a bar plot for each cluster in ranking order
+    y_max = max(collapsed.max() * 1.1, 0.1)
+    
+    for i, info in enumerate(cluster_info):
+        row = i // n_cols + 1
+        col = i % n_cols + 1
+        
+        # Get data for this cluster
+        data = collapsed[info['data_idx'], :]
+        
+        # Create bar colors (highlight constrained level if applicable)
+        colors = ['skyblue'] * num_levels
+        if highlight_idx is not None:
+            colors[highlight_idx] = 'lightcoral'
+        
+        # Create hover text
+        hover_text = [
+            f"<b>{info['brand_label']}</b><br>{satisfaction_labels[j]}<br>Probability: {data[j]:.4f}"
+            for j in range(num_levels)
+        ]
+        
+        fig.add_trace(
+            go.Bar(
+                x=satisfaction_labels,
+                y=data,
+                marker=dict(color=colors, line=dict(color='black', width=1)),
+                hovertext=hover_text,
+                hoverinfo='text',
+                showlegend=False
+            ),
+            row=row, col=col
+        )
+        
+        # Update axes for this subplot
+        fig.update_xaxes(title_text="Satisfaction Level", row=row, col=col)
+        fig.update_yaxes(title_text="Probability", range=[0, y_max], row=row, col=col)
+    
+    # Update layout
+    height = n_rows * 300
+    annotation_text = ""
     if has_constraint:
         if constraint_index == 0:
             constraint_desc = "first"
-        else:  # Must be the last column
+        else:
             constraint_desc = "last"
-        
-        plt.figtext(0.5, 0.01, 
-                   f"Note: The {constraint_desc} satisfaction level (highlighted) was omitted during analysis and reintegrated afterward.",
-                   ha='center', fontsize=10, style='italic')
+        annotation_text = f"Note: The {constraint_desc} satisfaction level (highlighted in coral) was omitted during analysis and reintegrated afterward."
     
-    plt.tight_layout()
-    if has_constraint:
-        # Add extra space at the bottom for the note
-        plt.subplots_adjust(bottom=0.1)
+    fig.update_layout(
+        height=height,
+        showlegend=False,
+        hovermode='closest'
+    )
+    
+    # Add annotation if needed
+    if annotation_text:
+        fig.add_annotation(
+            text=annotation_text,
+            xref="paper", yref="paper",
+            x=0.5, y=-0.05,
+            showarrow=False,
+            font=dict(size=10, style="italic"),
+            xanchor='center'
+        )
     
     return fig
 
 def plot_exploratory_brand_distribution(result, contingency_table):
     """
-    Generate a bar plot showing average satisfaction level for each brand.
+    Plot the distribution of satisfaction per brand group.
+    Creates a grid of bar plots, one for each brand cluster, ordered by ranking.
     
     Args:
         result: Dictionary from exploratory_computation
         contingency_table: The original contingency table
     """
-    # Convert contingency_table to numpy array if it's a DataFrame
-    if isinstance(contingency_table, pd.DataFrame):
-        contingency_table = np.array(contingency_table)
+    if 'collapsed_pmf' not in result:
+        raise ValueError("Result does not contain 'collapsed_pmf'.")
     
-    # Calculate average satisfaction for each brand
-    satisfaction_levels = np.arange(1, contingency_table.shape[1] + 1)
-    row_sums = contingency_table.sum(axis=1)
-    pmf = contingency_table / row_sums[:, np.newaxis]
-    avg_satisfaction = np.sum(pmf * satisfaction_levels, axis=1)
+    collapsed = result['collapsed_pmf']
+    if isinstance(collapsed, pd.DataFrame):
+        collapsed = np.array(collapsed)
     
-    # Create figure
-    fig, ax = plt.subplots(figsize=(10, 6))
+    # For each brand cluster, compute the satisfaction levels.
+    num_clusters, num_levels = collapsed.shape
     
-    # Plot one bar per brand
-    x = np.arange(len(avg_satisfaction))
-    ax.bar(x, avg_satisfaction, color='steelblue')
+    # Calculate grid dimensions
+    n_cols = min(3, num_clusters)  # Maximum 3 columns
+    n_rows = (num_clusters + n_cols - 1) // n_cols  # Ceiling division
     
-    # Customize plot
-    ax.set_xlabel('Brand')
-    ax.set_ylabel('Average Satisfaction Level')
-    ax.set_title('Average Satisfaction by Brand')
-    ax.set_xticks(x)
-    ax.set_xticklabels([f'Brand {i+1}' for i in range(len(avg_satisfaction))])
+    # Group brands by cluster
+    brand_clusters = {}
+    for i, cluster_id in enumerate(result['brand_cluster']):
+        if cluster_id not in brand_clusters:
+            brand_clusters[cluster_id] = []
+        brand_clusters[cluster_id].append(i + 1)  # Convert to 1-based indexing
     
-    plt.tight_layout()
+    # Get sorted cluster IDs
+    sorted_cluster_ids = sorted(brand_clusters.keys())
+    
+    # Create satisfaction level labels based on partition
+    satisfaction_labels = []
+    for j in range(num_levels):
+        # Get indices for this partition
+        current_indices = np.where(result['satisfaction_partition'] == j+1)[0]
+        
+        if len(current_indices) == 0:
+            # No partition - use simple label
+            satisfaction_labels.append(f"Level {j+1}")
+        elif len(current_indices) == 1:
+            # Single level
+            satisfaction_labels.append(f"Level {current_indices[0]+1}")  # +1 for 1-indexing
+        else:
+            # Multiple levels in partition
+            min_idx = min(current_indices) + 1  # +1 for 1-indexing
+            max_idx = max(current_indices) + 1
+            satisfaction_labels.append(f"Levels {min_idx}-{max_idx}")
+    
+    # Ensure we have enough labels
+    while len(satisfaction_labels) < num_levels:
+        satisfaction_labels.append(f"Level {len(satisfaction_labels)+1}")
+    
+    # Trim excess labels
+    satisfaction_labels = satisfaction_labels[:num_levels]
+    
+    # Get stochastic ordering if available
+    ordering = result.get('stochastic_ordering', None)
+    
+    # Create brand cluster info with ordering position for sorting
+    cluster_info = []
+    for cluster_idx, cluster_id in enumerate(sorted_cluster_ids):
+        brands = brand_clusters[cluster_id]
+        
+        if len(brands) == 1:
+            brand_label = f"Brand {brands[0]}"
+        else:
+            brand_label = f"Brands {', '.join(map(str, brands))}"
+        
+        # Get ordering position if stochastic ordering is available
+        if ordering is not None:
+            order_position = next((i+1 for i, idx in enumerate(ordering) 
+                                 if idx < len(sorted_cluster_ids) and sorted_cluster_ids[idx] == cluster_id), 
+                                None)
+            if order_position is not None:
+                brand_label = f"{order_position}. {brand_label}"
+        else:
+            order_position = cluster_idx + 1
+        
+        # Get the data index for this cluster
+        if ordering is not None:
+            data_idx = next((idx for idx in ordering if idx < len(sorted_cluster_ids) and sorted_cluster_ids[idx] == cluster_id), cluster_idx)
+        else:
+            data_idx = cluster_idx
+        
+        cluster_info.append({
+            'order_position': order_position if order_position is not None else cluster_idx + 1,
+            'cluster_id': cluster_id,
+            'brand_label': brand_label,
+            'data_idx': data_idx
+        })
+    
+    # Sort clusters by their ordering position so plots appear in rank order
+    cluster_info.sort(key=lambda x: x['order_position'])
+    
+    # Create Plotly subplots
+    subplot_titles = [info['brand_label'] for info in cluster_info]
+    fig = make_subplots(rows=n_rows, cols=n_cols, subplot_titles=subplot_titles)
+    
+    # Create a bar plot for each cluster in ranking order
+    y_max = max(collapsed.max() * 1.1, 0.1)
+    
+    for i, info in enumerate(cluster_info):
+        row = i // n_cols + 1
+        col = i % n_cols + 1
+        
+        # Get data for this cluster
+        data = collapsed[info['data_idx'], :]
+        
+        # Create hover text
+        hover_text = [
+            f"<b>{info['brand_label']}</b><br>{satisfaction_labels[j]}<br>Probability: {data[j]:.4f}"
+            for j in range(num_levels)
+        ]
+        
+        fig.add_trace(
+            go.Bar(
+                x=satisfaction_labels,
+                y=data,
+                marker=dict(color='skyblue', line=dict(color='black', width=1)),
+                hovertext=hover_text,
+                hoverinfo='text',
+                showlegend=False
+            ),
+            row=row, col=col
+        )
+        
+        # Update axes for this subplot
+        fig.update_xaxes(title_text="Satisfaction Level", row=row, col=col)
+        fig.update_yaxes(title_text="Probability", range=[0, y_max], row=row, col=col)
+    
+    # Update layout
+    height = n_rows * 300
+    fig.update_layout(
+        height=height,
+        showlegend=False,
+        hovermode='closest'
+    )
+    
     return fig
 
 def plot_exploratory_brand_clusters(result):
@@ -2094,25 +2252,44 @@ def plot_exploratory_brand_clusters(result):
     else:
         group_labels = [f"Brand Group = Brand {','.join(map(str, group))}" for group in brand_groups]
     
-    # Create figure with subplots for each brand group
+    # Create Plotly subplots
     n_groups = len(pmf)
-    fig, axes = plt.subplots(1, n_groups, figsize=(15, 6))
-    if n_groups == 1:
-        axes = [axes]
+    fig = make_subplots(rows=1, cols=n_groups, subplot_titles=group_labels)
     
     # Plot each group's distribution
-    for i, (ax, group_pmf, group_label) in enumerate(zip(axes, pmf, group_labels)):
-        x = np.arange(len(group_pmf))
-        ax.bar(x, group_pmf, color='steelblue')
-        ax.set_title(group_label)
-        ax.set_xlabel('Combined Satisfaction Levels')
-        ax.set_ylabel('Probability')
-        ax.set_xticks(x)
-        ax.set_xticklabels([f'Level {j+1}' for j in range(len(group_pmf))])
-        ax.set_ylim(0, 0.3)
+    for i, (group_pmf, group_label) in enumerate(zip(pmf, group_labels)):
+        x_labels = [f'Level {j+1}' for j in range(len(group_pmf))]
+        
+        # Create hover text
+        hover_text = [
+            f"<b>{group_label}</b><br>Level {j+1}<br>Probability: {prob:.4f}"
+            for j, prob in enumerate(group_pmf)
+        ]
+        
+        fig.add_trace(
+            go.Bar(
+                x=x_labels,
+                y=group_pmf,
+                marker=dict(color='steelblue', line=dict(color='black', width=1)),
+                hovertext=hover_text,
+                hoverinfo='text',
+                showlegend=False
+            ),
+            row=1, col=i+1
+        )
+        
+        # Update axes
+        fig.update_xaxes(title_text="Combined Satisfaction Levels", row=1, col=i+1)
+        fig.update_yaxes(title_text="Probability", range=[0, 0.3], row=1, col=i+1)
     
-    plt.suptitle('Ranking of Brand Groups', y=1.05)
-    plt.tight_layout()
+    # Update layout
+    fig.update_layout(
+        title=dict(text="Ranking of Brand Groups", font=dict(size=16), x=0.5, xanchor='center'),
+        height=400,
+        showlegend=False,
+        hovermode='closest'
+    )
+    
     return fig
 
 

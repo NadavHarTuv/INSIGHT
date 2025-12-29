@@ -1011,11 +1011,11 @@ def model_value_tab(threedim_result, result_idx=1):
             }
         
         # Display plots if they exist in session state
-        if st.session_state[f'plots_{unique_key}'] is not None:
-            plots = st.session_state[f'plots_{unique_key}']
-            if plots['model_value_plot']:
+        plots = st.session_state.get(f'plots_{unique_key}')
+        if plots is not None:
+            if plots.get('model_value_plot'):
                 st.plotly_chart(plots['model_value_plot'], use_container_width=True)
-            if plots['model_accuracy_plot']:
+            if plots.get('model_accuracy_plot'):
                 st.plotly_chart(plots['model_accuracy_plot'], use_container_width=True)
                 
         st.markdown('</div>', unsafe_allow_html=True)
@@ -1039,8 +1039,9 @@ def model_value_tab(threedim_result, result_idx=1):
             st.session_state[f'compute_results_{unique_key}'] = results
         
         # Display compute results if they exist in session state
-        if st.session_state[f'compute_results_{unique_key}'] is not None:
-            for result in st.session_state[f'compute_results_{unique_key}']:
+        compute_results = st.session_state.get(f'compute_results_{unique_key}')
+        if compute_results is not None:
+            for result in compute_results:
                 if isinstance(result, pd.DataFrame):
                     st.dataframe(result)
                 else:
