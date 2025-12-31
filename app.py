@@ -226,22 +226,43 @@ st.session_state['last_method'] = selected_method
 # Sidebar: File uploader
 uploaded_file = st.sidebar.file_uploader("Upload data file", type='csv', key='file_uploader')
 
-# Load/transform data only if a file is uploaded and we don't already have data
+# Load/transform data when a file is uploaded
+# ALWAYS call load_data to show the column selection UI, regardless of existing data
 if uploaded_file is not None:
-    # Only reload data if we don't have it yet, or if the file has changed
-    should_reload = (
-        st.session_state.get('raw_data') is None or 
-        st.session_state.get('transformed_data') is None or
-        st.session_state.get('uploaded_file_name') != uploaded_file.name
-    )
+    # Check if this is a different file than before
+    is_new_file = st.session_state.get('uploaded_file_name') != uploaded_file.name
     
-    if should_reload:
-        new_raw_data, new_transformed_data = utils.load_data(uploaded_file, selected_method)
-        if new_raw_data is not None and new_transformed_data is not None:
-            # Store the transformed data (contingency table) in session state
-            st.session_state['raw_data'] = new_raw_data
+    # If it's a new file, reset everything to allow fresh column selection
+    if is_new_file:
+        st.session_state['transformed_data'] = None
+        st.session_state['uploaded_file_name'] = uploaded_file.name
+        st.session_state['data_modified'] = False
+        st.session_state['last_column_selection'] = None
+    
+    # Always call load_data to display the column selection UI
+    new_raw_data, new_transformed_data = utils.load_data(uploaded_file, selected_method)
+    
+    # Update raw_data always
+    if new_raw_data is not None:
+        st.session_state['raw_data'] = new_raw_data
+    
+    # Only update transformed_data if:
+    # 1. We don't have any yet (first load), OR
+    # 2. Data hasn't been modified (collapsed) and new data is available
+    # 3. Column selection actually changed (detected by comparing data shapes or a hash)
+    if new_transformed_data is not None:
+        # Check if this is initial load or if we should update
+        current_data = st.session_state.get('transformed_data')
+        should_update = (
+            current_data is None or  # No data yet
+            (not st.session_state.get('data_modified', False) and  # Data not collapsed
+             (current_data.shape != new_transformed_data.shape or  # Different shape means different selection
+              not current_data.equals(new_transformed_data)))  # Or different content
+        )
+        
+        if should_update:
             st.session_state['transformed_data'] = new_transformed_data
-            st.session_state['uploaded_file_name'] = uploaded_file.name
+            st.session_state['data_modified'] = False
         # Set up storage for results and tabs specific to this method.
 key = selected_method.lower().replace(" ", "_")
 if key not in st.session_state['results']:
@@ -276,8 +297,22 @@ if selected_method == 'Independence' and st.session_state.get('transformed_data'
             key="collapse_col_groups"
         )
         
+        # Collapse and Revert buttons side by side
+        col1, col2 = st.columns(2)
+        
+        # Revert button - only show if data has been modified (collapsed)
+        with col2:
+            if st.session_state.get('data_modified', False):
+                if st.button("↩ Revert", key="revert_collapse_btn", help="Restore original uncollapsed data"):
+                    st.session_state['data_modified'] = False
+                    st.session_state['transformed_data'] = None  # Force reload from original
+                    st.rerun()
+        
         # Collapse button
-        if st.button("Collapse Data", key="collapse_data_btn"):
+        with col1:
+            collapse_clicked = st.button("Collapse", key="collapse_data_btn")
+        
+        if collapse_clicked:
             row_groups = None
             col_groups = None
             
@@ -309,8 +344,9 @@ if selected_method == 'Independence' and st.session_state.get('transformed_data'
                     # Update the transformed data in session state 
                     st.session_state['transformed_data'] = collapsed_data
                     st.session_state['indep_contingency_table'] = collapsed_data
+                    st.session_state['data_modified'] = True  # Mark data as modified to prevent overwriting
                     
-                    st.success("Data collapsed successfully!")
+                    st.rerun()  # Rerun to show the Revert button immediately
                 except Exception as e:
                     st.error(f"Error collapsing data: {str(e)}")
                     import traceback
@@ -1517,8 +1553,22 @@ elif selected_method == 'Spacing Models' and st.session_state.get('transformed_d
             key="spacing_collapse_col_groups"
         )
         
+        # Collapse and Revert buttons side by side
+        col1, col2 = st.columns(2)
+        
+        # Revert button - only show if data has been modified (collapsed)
+        with col2:
+            if st.session_state.get('data_modified', False):
+                if st.button("↩ Revert", key="spacing_revert_collapse_btn", help="Restore original uncollapsed data"):
+                    st.session_state['data_modified'] = False
+                    st.session_state['transformed_data'] = None  # Force reload from original
+                    st.rerun()
+        
         # Collapse button
-        if st.button("Collapse Data", key="spacing_collapse_data_btn"):
+        with col1:
+            collapse_clicked = st.button("Collapse", key="spacing_collapse_data_btn")
+        
+        if collapse_clicked:
             row_groups = None
             col_groups = None
             
@@ -1549,8 +1599,9 @@ elif selected_method == 'Spacing Models' and st.session_state.get('transformed_d
                     
                     # Update the transformed data in session state 
                     st.session_state['transformed_data'] = collapsed_data
+                    st.session_state['data_modified'] = True  # Mark data as modified to prevent overwriting
                     
-                    st.success("Data collapsed successfully!")
+                    st.rerun()  # Rerun to show the Revert button immediately
                 except Exception as e:
                     st.error(f"Error collapsing data: {str(e)}")
                     import traceback
