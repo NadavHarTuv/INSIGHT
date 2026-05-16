@@ -296,7 +296,7 @@ def clean_df(df):
     # Convert column names to strings
     df.columns = [str(col) for col in df.columns]
     # Convert every element to a native Python type if it's a NumPy type
-    df = df.applymap(lambda x: int(x) if isinstance(x, np.integer) else x)
+    df = df.map(lambda x: int(x) if isinstance(x, np.integer) else x)
     # Clear any extra attributes that might not be serializable
     df.attrs = {}
     return df
@@ -458,7 +458,7 @@ def signif(x, digits):
     if isinstance(x, (list, np.ndarray, pd.Series)):
         return np.vectorize(lambda n: format_number(n, digits))(x)
     elif isinstance(x, pd.DataFrame):
-        return x.applymap(lambda n: format_number(n, digits))
+        return x.map(lambda n: format_number(n, digits))
     else:  # scalar
         return format_number(x, digits)
     
