@@ -642,15 +642,13 @@ def bra_brl_plot(bra, brl):
             xanchor='center'
         ),
         xaxis=dict(
-            title="BRA",
-            titlefont=dict(size=14),
+            title=dict(text="BRA", font=dict(size=14)),
             gridcolor='rgba(128, 128, 128, 0.3)',
             gridwidth=1,
             showgrid=True
         ),
         yaxis=dict(
-            title="BRL",
-            titlefont=dict(size=14),
+            title=dict(text="BRL", font=dict(size=14)),
             gridcolor='rgba(128, 128, 128, 0.3)',
             gridwidth=1,
             showgrid=True
