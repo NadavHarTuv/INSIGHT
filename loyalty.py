@@ -480,7 +480,7 @@ def q_model_computation(contingency_table, significance_threshold=1.64, p_value_
 
     fisher_info[num_brand:num_brand + num_brand, num_brand:num_brand + num_brand] = fisher_info_alpha_alpha
     
-    fisher_info[num_brand:num_brand+5, 3*num_brand] = fisher_info_alpha_eta1
+    fisher_info[num_brand:2*num_brand, 3*num_brand] = fisher_info_alpha_eta1
     
     
     fisher_info[2*num_brand:3*num_brand, 2*num_brand:3*num_brand] = fisher_info_beta_beta
