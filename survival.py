@@ -113,8 +113,8 @@ def homogeneous_report(result, first_stage_idx, test_portion=None):
     
     n_k_over_N_k = list(result['cond_frac_of_death_per_period']) + [None, None]
     
-    expected_death_per_period_flat = [float(x) if isinstance(x, (int, float)) else float(np.sum(x)) for x in result['expected_death_per_period']]
-    expected = expected_death_per_period_flat + [float(result['expected_still_survive']), None]  # Replacing sum with None
+    expected_death_per_period_flat = [float(np.sum(x)) for x in result['expected_death_per_period']]
+    expected = expected_death_per_period_flat + [float(np.sum(result['expected_still_survive'])), None]
     expected[-1] = observed[-1]
     expected = [np.round(x,2) if x is not None else None for x in expected ]
 
@@ -292,8 +292,8 @@ def acc_dc_report(result, first_stage_idx):
     n_k_over_N_k = [np.round(x,2) if x is not None else None for x in n_k_over_N_k ]    
 
     
-    expected_death_per_period_flat = [float(x) if isinstance(x, (int, float)) else float(np.sum(x)) for x in result['expected_death_per_period']]
-    expected = expected_death_per_period_flat + [float(result['expected_still_survive']), observed[-1]]  # Replacing sum with None
+    expected_death_per_period_flat = [float(np.sum(x)) for x in result['expected_death_per_period']]
+    expected = expected_death_per_period_flat + [float(np.sum(result['expected_still_survive'])), observed[-1]]
     expected[-1] = observed[-1]
     expected = [np.round(x,2) if x is not None else None for x in expected ]    
     
